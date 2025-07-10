@@ -1,0 +1,16 @@
+[project]
+name = "limitless-sdk"
+version = "0.1.0"
+description = "Python SDK for Limitless"
+authors = [{ name = "Limitless", email = "support@limitless.ai" }]
+license = { file = "LICENSE" }
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = ["requests>=2.31.0"]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff", "mypy"]
+
+[build-system]
+requires = ["uv", "setuptools"]
+build-backend = "setuptools.build_meta"
