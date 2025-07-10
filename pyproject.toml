@@ -1,15 +1,15 @@
 [project]
 name = "limitless-sdk"
 version = "0.1.0"
-description = "Python SDK for Limitless"
+description = "Python SDK for Limitless Exchange"
 authors = [{ name = "Limitless", email = "support@limitless.ai" }]
 license = { file = "LICENSE" }
 readme = "README.md"
 requires-python = ">=3.8"
-dependencies = ["requests>=2.31.0"]
+dependencies = ["aiohttp>=3.8.0", "eth-account>=0.9.0", "pydantic>=2.0.0"]
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff", "mypy"]
+dev = ["pytest", "ruff", "mypy", "pytest-asyncio"]
 
 [build-system]
 requires = ["uv", "setuptools"]
