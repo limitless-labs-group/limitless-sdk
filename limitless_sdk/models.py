@@ -2,7 +2,7 @@
 
 from enum import Enum, IntEnum
 from typing import List, Optional
-from pydantic import BaseModel
+from dataclasses import dataclass
 
 
 class OrderSide(IntEnum):
@@ -11,10 +11,11 @@ class OrderSide(IntEnum):
     SELL = 1
 
 
-class OrderType(str, Enum):
+class OrderType(Enum):
     """Order type enumeration."""
     LIMIT = "LIMIT"
     MARKET = "MARKET"
+    GTC = "GTC"
 
 
 class SignatureType(IntEnum):
@@ -24,42 +25,47 @@ class SignatureType(IntEnum):
     POLY_PROXY = 2
 
 
-class Order(BaseModel):
+@dataclass
+class Order:
     """Order model for creating orders."""
     salt: int
     maker: str
     signer: str
-    taker: str = "0x0000000000000000000000000000000000000000"
     tokenId: str
-    makerAmount: str
-    takerAmount: str
-    expiration: int = 0
-    nonce: int = 0
-    price: str
-    feeRateBps: int = 30
-    side: OrderSide
+    makerAmount: int
+    takerAmount: int
+    feeRateBps: int
+    side: int  # 0 - BUY, 1 - SELL
     signature: str
-    signatureType: SignatureType = SignatureType.EOA
+    signatureType: int  # 0, 1, 2, 3
+    taker: Optional[str] = None
+    expiration: Optional[str] = None
+    nonce: Optional[int] = None
+    price: Optional[float] = None
 
 
-class CreateOrderDto(BaseModel):
+@dataclass
+class CreateOrderDto:
     """DTO for creating orders."""
     order: Order
-    ownerId: Optional[int] = None
-    orderType: OrderType = OrderType.LIMIT
+    ownerId: int
+    orderType: str
     marketSlug: str
 
 
-class CancelOrderDto(BaseModel):
+@dataclass
+class CancelOrderDto:
     """DTO for canceling orders."""
-    orderId: str
+    order_id: str
 
 
-class DeleteOrderBatchDto(BaseModel):
+@dataclass
+class DeleteOrderBatchDto:
     """DTO for batch deleting orders."""
     orderIds: List[str]
 
 
-class MarketSlugValidator(BaseModel):
+@dataclass
+class MarketSlugValidator:
     """Validator for market slugs."""
     slug: str 

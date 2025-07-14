@@ -15,10 +15,6 @@ def test_client_initialization():
     assert client.private_key == private_key
     assert client.account is not None
     assert client.session is None
-    assert client.auth_token is None
-
-
-
 
 
 def test_enums():

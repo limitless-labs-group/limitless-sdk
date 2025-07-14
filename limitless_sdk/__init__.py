@@ -10,7 +10,7 @@ from .models import (
     OrderType,
     OrderSide,
 )
-from .exceptions import LimitlessAPIError, RateLimitError
+from .exceptions import LimitlessAPIError, RateLimitError, AuthenticationError
 
 __version__ = "0.1.0"
 __all__ = [
@@ -24,4 +24,5 @@ __all__ = [
     "OrderSide",
     "LimitlessAPIError",
     "RateLimitError",
+    "AuthenticationError",
 ] 
