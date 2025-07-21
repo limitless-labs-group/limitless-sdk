@@ -98,11 +98,12 @@ def retry_on_rate_limit(max_retries: int = 2, delays: List[int] = None):
 class LimitlessClient:
     """Async client for Limitless Exchange API."""
     
-    def __init__(self, private_key: str):
+    def __init__(self, private_key: str, additional_headers: Optional[Dict[str, str]] = None):
         """Initialize the API client.
         
         Args:
             private_key: Ethereum private key for authentication (required)
+            additional_headers: Optional additional headers to include in all requests (e.g., for rate limiting bypass)
         """
         self.base_url = "https://api.limitless.exchange"
         self.private_key = private_key
@@ -110,6 +111,7 @@ class LimitlessClient:
         self.timeout = aiohttp.ClientTimeout(total=30)
         self.session = None
         self.signing_message = None
+        self.additional_headers = additional_headers or {}
     
     async def __aenter__(self):
         """Create session when used as context manager."""
@@ -126,6 +128,9 @@ class LimitlessClient:
             headers = {
                 "Content-Type": "application/json",
             }
+            # Merge additional headers if provided
+            headers.update(self.additional_headers)
+            
             # Create session with cookie jar to automatically handle cookies
             cookie_jar = aiohttp.CookieJar()
             self.session = aiohttp.ClientSession(
@@ -200,6 +205,8 @@ class LimitlessClient:
             "x-signature": signature,
             "x-signing-message": hex_signing_message
         }
+        # Merge additional headers if provided
+        headers.update(self.additional_headers)
         
         async with self.session.post(url, json=payload, headers=headers) as response:
             response_text = await response.text()
@@ -746,9 +753,12 @@ class LimitlessClient:
         
         # For DELETE requests, we need to avoid sending Content-Type header
         # Create a new request without the default session headers
+        # but include additional headers (like rate limiting bypass)
+        delete_headers = self.additional_headers.copy() if self.additional_headers else {}
         async with aiohttp.ClientSession(
             timeout=self.timeout,
-            cookie_jar=self.session.cookie_jar  # Keep the cookies for auth
+            cookie_jar=self.session.cookie_jar,  # Keep the cookies for auth
+            headers=delete_headers
         ) as delete_session:
             async with delete_session.delete(url) as response:
                 if response.status == 200:

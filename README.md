@@ -70,6 +70,25 @@ import os
 client = LimitlessClient(private_key=os.getenv("PRIVATE_KEY"))
 ```
 
+### Additional Headers
+
+You can pass additional HTTP headers that will be included in all API requests. This is useful for rate limiting bypass headers or other custom authentication:
+
+```python
+# Initialize with additional headers (e.g., for rate limiting bypass)
+additional_headers = {
+    "x-rate-limit-bypass": "your-secret-token",
+    "x-custom-header": "custom-value"
+}
+
+client = LimitlessClient(
+    private_key="your_private_key_here",
+    additional_headers=additional_headers
+)
+```
+
+**Note:** Additional headers are included in all HTTP requests made by the SDK, including authentication, market data, and trading operations.
+
 ## Market Data
 
 ### Get Markets
@@ -270,6 +289,15 @@ For questions or issues:
 - Email: support@limitless.ai
 
 ## Changelog
+
+### v0.2.0
+
+- **New Feature**: Added `additional_headers` parameter to `LimitlessClient`
+  - Allows passing custom headers (e.g., rate limiting bypass tokens)
+  - Headers are included in all API requests automatically
+  - Maintains backward compatibility
+- Fixed license configuration in pyproject.toml
+- Enhanced test coverage for header functionality
 
 ### v0.1.0
 
