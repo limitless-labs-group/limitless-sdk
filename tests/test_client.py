@@ -22,8 +22,8 @@ def test_enums():
     assert OrderSide.BUY == 0
     assert OrderSide.SELL == 1
     
-    assert OrderType.LIMIT == "LIMIT"
-    assert OrderType.MARKET == "MARKET"
+    assert OrderType.LIMIT.value == "LIMIT"
+    assert OrderType.MARKET.value == "MARKET"
 
 
 def test_exceptions():
@@ -64,4 +64,44 @@ def test_sign_message():
     assert isinstance(signature, str)
     assert len(signature) == 130  # 65 bytes * 2 chars per byte (no 0x prefix)
     # Verify it's a valid hex string
-    int(signature, 16) 
+    int(signature, 16)
+
+
+def test_additional_headers_initialization():
+    """Test that additional_headers are properly stored during initialization."""
+    private_key = "0x" + "a" * 64
+    additional_headers = {"x-secret-bypass": "secret-token", "x-custom": "value"}
+    
+    client = LimitlessClient(private_key=private_key, additional_headers=additional_headers)
+    
+    assert client.additional_headers == additional_headers
+    
+    # Test with no additional headers
+    client_no_headers = LimitlessClient(private_key=private_key)
+    assert client_no_headers.additional_headers == {}
+
+
+@pytest.mark.asyncio
+async def test_additional_headers_in_session():
+    """Test that additional_headers are included in session headers."""
+    private_key = "0x" + "a" * 64
+    additional_headers = {"x-secret-bypass": "secret-token", "x-custom": "value"}
+    
+    client = LimitlessClient(private_key=private_key, additional_headers=additional_headers)
+    
+    with patch('aiohttp.ClientSession') as mock_session:
+        await client.create_session()
+        
+        # Verify that ClientSession was called with headers including additional_headers
+        mock_session.assert_called_once()
+        call_kwargs = mock_session.call_args[1]
+        
+        assert 'headers' in call_kwargs
+        headers = call_kwargs['headers']
+        
+        # Check that default headers are present
+        assert headers['Content-Type'] == 'application/json'
+        
+        # Check that additional headers are present
+        assert headers['x-secret-bypass'] == 'secret-token'
+        assert headers['x-custom'] == 'value' 
