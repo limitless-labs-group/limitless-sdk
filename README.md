@@ -290,6 +290,15 @@ For questions or issues:
 
 ## Changelog
 
+### v0.2.0
+
+- **New Feature**: Added `additional_headers` parameter to `LimitlessClient`
+  - Allows passing custom headers (e.g., rate limiting bypass tokens)
+  - Headers are included in all API requests automatically
+  - Maintains backward compatibility
+- Fixed license configuration in pyproject.toml
+- Enhanced test coverage for header functionality
+
 ### v0.1.0
 
 - Initial release
