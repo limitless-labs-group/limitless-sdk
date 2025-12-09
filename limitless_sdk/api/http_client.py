@@ -60,11 +60,11 @@ class HttpClient:
     async def _ensure_session(self) -> None:
         """Ensure aiohttp session exists."""
         if self._session is None or self._session.closed:
-            # Only set Accept header by default (not Content-Type) - as this was passed to delete and causing issues :) 
+            # Only set Accept header by default (not Content-Type) - as this was passed to delete and causing issues :)
             # Content-Type will be added per-request where needed
+            # Note: additional_headers are added in _prepare_headers() per-request
             headers = {
                 "Accept": "application/json",
-                **self._additional_headers,
             }
 
             cookie_jar = aiohttp.CookieJar()
@@ -96,14 +96,19 @@ class HttpClient:
             additional_headers: Additional headers for this request
 
         Returns:
-            Complete headers dict
+            Complete headers dict including global additional_headers
         """
         headers = {}
 
-       
+        # Add global headers from constructor
+        if self._additional_headers:
+            headers.update(self._additional_headers)
+
+        # Add session cookie
         if self._session_cookie:
             headers["Cookie"] = f"limitless_session={self._session_cookie}"
 
+        # Add per-request headers (can override global headers)
         if additional_headers:
             headers.update(additional_headers)
 
