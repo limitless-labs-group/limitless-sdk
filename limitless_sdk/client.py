@@ -532,22 +532,6 @@ class LimitlessClient:
                 raise LimitlessAPIError(f"Failed to get markets: {response.status} - {error_text}", response.status)
 
     @retry_on_rate_limit(max_retries=2, delays=[5, 10])
-    async def get_markets(self) -> List[Dict]:
-        """Get all markets."""
-        await self.ensure_session()
-        
-        url = f"{self.base_url}/markets"
-        async with self.session.get(url) as response:
-            if response.status == 200:
-                return await response.json()
-            elif response.status == 429:
-                error_text = await response.text()
-                raise RateLimitError(f"Rate limit exceeded: {error_text}", response.status)
-            else:
-                error_text = await response.text()
-                raise LimitlessAPIError(f"Failed to get markets: {response.status} - {error_text}", response.status)
-    
-    @retry_on_rate_limit(max_retries=2, delays=[5, 10])
     async def get_market(self, slug_or_address: str) -> Dict:
         """Get a specific market by slug or address."""
         await self.ensure_session()
