@@ -16,7 +16,8 @@ from ..types.orders import (
 )
 from ..types.auth import UserData
 from ..types.logger import ILogger, NoOpLogger
-from ..utils.constants import get_contract_address
+from ..utils.constants import ZERO_ADDRESS
+from ..markets.fetcher import MarketFetcher
 from .builder import OrderBuilder
 from .signer import OrderSigner
 
@@ -27,18 +28,24 @@ class OrderClient:
     This class provides methods for creating and managing orders,
     abstracting away HTTP details and order signing complexity.
 
+    Uses dynamic venue addressing for EIP-712 order signing. For best performance,
+    provide a shared market_fetcher instance to enable venue caching across market
+    fetches and order creation.
+
     Args:
         http_client: HTTP client for API requests
         wallet: Ethereum account for signing
         user_data: User data containing userId and feeRateBps
         market_type: Market type for auto-configuration (default: CLOB)
         signing_config: Custom signing configuration (optional)
+        market_fetcher: Shared MarketFetcher instance for venue caching (optional)
         logger: Optional logger for debugging
 
     Example:
         >>> from eth_account import Account
         >>> from limitless_sdk.api import HttpClient
         >>> from limitless_sdk.orders import OrderClient
+        >>> from limitless_sdk.markets import MarketFetcher
         >>> from limitless_sdk.types import UserData, Side, OrderType, MarketType
         >>>
         >>> # Setup
@@ -46,22 +53,29 @@ class OrderClient:
         >>> http_client = HttpClient()
         >>> user_data = UserData(user_id=123, fee_rate_bps=300)
         >>>
+        >>> # Best practice: share MarketFetcher for venue caching
+        >>> market_fetcher = MarketFetcher(http_client)
+        >>>
         >>> # Create order client
         >>> order_client = OrderClient(
         ...     http_client=http_client,
         ...     wallet=account,
         ...     user_data=user_data,
-        ...     market_type=MarketType.CLOB
+        ...     market_type=MarketType.CLOB,
+        ...     market_fetcher=market_fetcher
         ... )
         >>>
-        >>> # Create order
+        >>> # Venue is cached
+        >>> market = await market_fetcher.get_market("bitcoin-2024")
+        >>>
+        >>> # Uses cached venue, no extra API call
         >>> order = await order_client.create_order(
         ...     token_id="123456",
         ...     price=0.65,
         ...     size=100.0,
         ...     side=Side.BUY,
         ...     order_type=OrderType.GTC,
-        ...     market_slug="bitcoin-price-2024"
+        ...     market_slug="bitcoin-2024"
         ... )
     """
 
@@ -72,6 +86,7 @@ class OrderClient:
         user_data: UserData,
         market_type: MarketType = MarketType.CLOB,
         signing_config: Optional[OrderSigningConfig] = None,
+        market_fetcher: Optional[MarketFetcher] = None,
         logger: Optional[ILogger] = None,
     ):
         """Initialize order client.
@@ -82,6 +97,7 @@ class OrderClient:
             user_data: User data (userId, feeRateBps)
             market_type: Market type (CLOB or NEGRISK)
             signing_config: Custom signing config (optional)
+            market_fetcher: Shared MarketFetcher for venue caching (optional)
             logger: Optional logger
         """
         self._http_client = http_client
@@ -99,6 +115,9 @@ class OrderClient:
         # Initialize order signer
         self._signer = OrderSigner(wallet, logger)
 
+        # Initialize or use provided market fetcher for venue caching
+        self._market_fetcher = market_fetcher or MarketFetcher(http_client, logger)
+
         # Configure signing
         if signing_config:
             self._signing_config = signing_config
@@ -109,11 +128,10 @@ class OrderClient:
             # Read chain ID from environment or use default
             chain_id = int(os.getenv("CHAIN_ID", "8453"))  # Base mainnet default
 
-            # Read contract address from environment or use SDK default
-            if market_type == MarketType.CLOB:
-                contract_address = os.getenv("CLOB_CONTRACT_ADDRESS") or get_contract_address("CLOB", chain_id)
-            else:
-                contract_address = os.getenv("NEGRISK_CONTRACT_ADDRESS") or get_contract_address("NEGRISK", chain_id)
+            # Note: contractAddress is a placeholder here and will be dynamically replaced
+            # with venue.exchange in create_order(). The actual contract address comes from
+            # the venue system (market.venue.exchange).
+            contract_address = ZERO_ADDRESS
 
             self._signing_config = OrderSigningConfig(
                 chain_id=chain_id,
@@ -122,10 +140,9 @@ class OrderClient:
             )
 
             self._logger.info(
-                "Auto-configured signing",
+                "Auto-configured signing (contract address from venue)",
                 {
                     "chain_id": chain_id,
-                    "contract": contract_address,
                     "market_type": market_type.value,
                 },
             )
@@ -145,9 +162,13 @@ class OrderClient:
         """Create and submit a new order.
 
         This method handles the complete order creation flow:
-        1. Build unsigned order with proper amount calculations
-        2. Sign order with EIP-712
-        3. Submit to API
+        1. Resolve venue address (from cache or API)
+        2. Build unsigned order with proper amount calculations
+        3. Sign order with EIP-712 using venue.exchange as verifyingContract
+        4. Submit to API
+
+        Performance best practice: Always call market_fetcher.get_market(market_slug)
+        before create_order() to cache venue data and avoid additional API requests.
 
         Args:
             token_id: Token ID for the outcome
@@ -168,11 +189,14 @@ class OrderClient:
             APIError: If order creation fails
 
         Example GTC:
+            >>> # Best practice: fetch market first to cache venue
+            >>> market = await market_fetcher.get_market("bitcoin-2024")
+            >>>
             >>> order = await client.create_order(
             ...     token_id="123456",
             ...     side=Side.BUY,
             ...     order_type=OrderType.GTC,
-            ...     market_slug="bitcoin-price-2024",
+            ...     market_slug="bitcoin-2024",
             ...     price=0.65,
             ...     size=100.0
             ... )
@@ -222,6 +246,39 @@ class OrderClient:
                 },
             )
 
+        # Step 1: Resolve venue from cache or fetch market
+        venue = self._market_fetcher.get_venue(market_slug)
+
+        if not venue:
+            self._logger.warning(
+                f"Venue not cached, fetching market details. "
+                f"For better performance, call market_fetcher.get_market() before create_order().",
+                {"market_slug": market_slug}
+            )
+
+            market = await self._market_fetcher.get_market(market_slug)
+
+            if not market.venue:
+                raise ValueError(
+                    f"Market {market_slug} does not have venue information. "
+                    f"Venue data is required for order signing."
+                )
+
+            venue = market.venue
+
+        # Create dynamic signing config with venue.exchange
+        dynamic_signing_config = OrderSigningConfig(
+            chain_id=self._signing_config.chain_id,
+            contract_address=venue.exchange,
+            market_type=self._signing_config.market_type,
+        )
+
+        self._logger.debug(
+            "Using venue for order signing",
+            {"market_slug": market_slug, "exchange": venue.exchange}
+        )
+
+        # Step 2: Build unsigned order
         if is_fok:
             unsigned_order = self._builder.build_fok_order(
                 token_id=token_id,
@@ -249,7 +306,8 @@ class OrderClient:
             },
         )
 
-        signature = await self._signer.sign_order(unsigned_order, self._signing_config)
+        # Step 3: Sign order with dynamic venue
+        signature = await self._signer.sign_order(unsigned_order, dynamic_signing_config)
 
         signed_order = SignedOrder(**unsigned_order.model_dump(), signature=signature)
 

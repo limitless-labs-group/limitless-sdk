@@ -186,6 +186,27 @@ class MarketOutcome(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class Venue(BaseModel):
+    """Venue information for CLOB markets.
+
+    Contains contract addresses required for trading:
+    - exchange: Used as verifyingContract for EIP-712 order signing
+    - adapter: Required for NegRisk/Grouped market SELL approvals
+
+    Attributes:
+        exchange: Exchange contract address (used as verifyingContract in EIP-712 signing,
+                  all BUY orders require USDC approval to this address,
+                  simple CLOB SELL orders require CT approval to this address)
+        adapter: Adapter contract address (optional, required for NegRisk/Grouped markets only,
+                 SELL orders on NegRisk markets require CT approval to both exchange AND adapter)
+    """
+
+    exchange: str
+    adapter: Optional[str] = None
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class MarketTokens(BaseModel):
     """Market token IDs for CLOB markets."""
     yes: str
@@ -228,6 +249,7 @@ class Market(BaseModel):
         trade_prices: Trade prices for buy/sell market/limit orders (optional, CLOB only)
         is_rewardable: Whether market is rewardable (optional, CLOB only)
         settings: Market settings (optional, CLOB only)
+        venue: Venue information (exchange and adapter addresses) for order signing and approvals
         volume: Trading volume (optional)
         volume_formatted: Formatted trading volume (optional)
         logo: Market logo URL (optional)
@@ -274,6 +296,7 @@ class Market(BaseModel):
     trade_prices: Optional[TradePrices] = Field(None, alias="tradePrices")
     is_rewardable: Optional[bool] = Field(None, alias="isRewardable")
     settings: Optional[MarketSettings] = None
+    venue: Optional[Venue] = None
     logo: Optional[str] = None
     price_oracle_metadata: Optional[PriceOracleMetadata] = Field(None, alias="priceOracleMetadata")
     order_in_group: Optional[int] = Field(None, alias="orderInGroup")

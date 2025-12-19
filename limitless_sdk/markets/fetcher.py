@@ -1,6 +1,6 @@
 """Market data fetcher for Limitless Exchange."""
 
-from typing import List, Optional
+from typing import List, Optional, Dict
 from ..api.http_client import HttpClient
 from ..types.markets import (
     Market,
@@ -8,6 +8,7 @@ from ..types.markets import (
     OrderBook,
     ActiveMarketsParams,
     ActiveMarketsResponse,
+    Venue,
 )
 from ..types.logger import ILogger, NoOpLogger
 
@@ -17,6 +18,10 @@ class MarketFetcher:
 
     This class provides methods to fetch market data, orderbooks, and prices
     from the Limitless Exchange API.
+
+    Venue Caching:
+        The fetcher automatically caches venue information (exchange and adapter addresses)
+        when markets are fetched. This optimizes order creation by avoiding redundant API calls.
 
     Args:
         http_client: HTTP client for API requests
@@ -32,6 +37,10 @@ class MarketFetcher:
         >>> # Get active markets
         >>> response = await fetcher.get_active_markets()
         >>> print(f"Found {len(response.data)} markets")
+        >>>
+        >>> # Venue is cached after fetching market
+        >>> market = await fetcher.get_market("bitcoin-2024")
+        >>> venue = fetcher.get_venue("bitcoin-2024")  # Instant, no API call
     """
 
     def __init__(self, http_client: HttpClient, logger: Optional[ILogger] = None):
@@ -43,6 +52,7 @@ class MarketFetcher:
         """
         self._http_client = http_client
         self._logger = logger or NoOpLogger()
+        self._venue_cache: Dict[str, Venue] = {}  # Cache venues by market slug
 
     async def get_active_markets(
         self, params: Optional[ActiveMarketsParams] = None
@@ -109,6 +119,9 @@ class MarketFetcher:
     async def get_market(self, slug: str) -> Market:
         """Get a single market by slug.
 
+        Automatically caches venue information for efficient order creation.
+        After calling this method, use get_venue(slug) to retrieve cached venue.
+
         Args:
             slug: Market slug identifier
 
@@ -122,12 +135,24 @@ class MarketFetcher:
             >>> market = await fetcher.get_market("bitcoin-price-2024")
             >>> print(f"Market: {market.title}")
             >>> print(f"Description: {market.description}")
+            >>>
+            >>> # Venue is now cached
+            >>> venue = fetcher.get_venue("bitcoin-price-2024")
+            >>> print(f"Exchange: {venue.exchange}")
         """
         self._logger.debug("Fetching market", {"slug": slug})
 
         try:
             response_data = await self._http_client.get(f"/markets/{slug}")
             market = Market(**response_data)
+
+            # Cache venue if present
+            if market.venue:
+                self._venue_cache[slug] = market.venue
+                self._logger.debug(
+                    "Cached venue for market",
+                    {"slug": slug, "exchange": market.venue.exchange}
+                )
 
             self._logger.info(
                 "Market fetched successfully", {"slug": slug, "title": market.title}
@@ -178,4 +203,31 @@ class MarketFetcher:
         except Exception as error:
             self._logger.error("Failed to fetch orderbook", error, {"slug": slug})
             raise
+
+    def get_venue(self, slug: str) -> Optional[Venue]:
+        """Get cached venue information for a market.
+
+        This method retrieves venue information from the cache. Venue data is
+        automatically cached when get_market() is called.
+
+        For best performance, always call get_market() before creating orders
+        to ensure venue information is cached and available.
+
+        Args:
+            slug: Market slug identifier
+
+        Returns:
+            Venue object if cached, None otherwise
+
+        Example:
+            >>> # First fetch the market to cache venue
+            >>> market = await fetcher.get_market("bitcoin-2024")
+            >>>
+            >>> # Now retrieve cached venue (no API call)
+            >>> venue = fetcher.get_venue("bitcoin-2024")
+            >>> if venue:
+            ...     print(f"Exchange: {venue.exchange}")
+            ...     print(f"Adapter: {venue.adapter}")
+        """
+        return self._venue_cache.get(slug)
 
