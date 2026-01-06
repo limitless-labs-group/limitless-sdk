@@ -12,6 +12,7 @@ A minimalistic, async Python SDK for interacting with the Limitless Exchange API
 - 🌐 **WebSocket support** - Real-time orderbook updates
 - 🛡️ **Custom headers** - Global and per-request header configuration
 - ⚡ **Async/await support** - Modern async Python with aiohttp
+- 🚀 **Venue caching** - Automatic contract address caching for optimized order creation
 
 ## Installation
 
@@ -48,6 +49,10 @@ async def main():
         market_fetcher = MarketFetcher(http_client)
         markets = await market_fetcher.get_markets()
         print(f"Found {markets['totalCount']} markets")
+
+        # Fetch specific market (caches venue data for orders)
+        market = await market_fetcher.get_market("bitcoin-2024")
+        print(f"Market: {market.title}")
 
         # Get positions
         portfolio_fetcher = PortfolioFetcher(http_client)
@@ -139,11 +144,14 @@ markets = await market_fetcher.get_markets(page=1, limit=50)
 print(f"Total: {markets['totalCount']}")
 print(f"Markets: {len(markets['data'])}")
 
-# Get specific market
+# Get specific market (automatically caches venue data)
 market = await market_fetcher.get_market("market-slug")
 print(f"Title: {market.title}")
 print(f"YES Token: {market.tokens.yes}")
 print(f"NO Token: {market.tokens.no}")
+
+# Venue data is now cached for efficient order creation
+# Includes: exchange address (for signing) and adapter address (for NegRisk approvals)
 ```
 
 ### Get Orderbook
@@ -156,6 +164,72 @@ for order in orderbook.get('orders', []):
     print(f"Price: {order['price']}, Size: {order['size']}")
 ```
 
+## Token Approvals
+
+**Important**: Before placing orders, you must approve tokens for the exchange contracts. This is a **one-time setup** per wallet.
+
+### Required Approvals
+
+**CLOB Markets:**
+- **BUY orders**: Approve USDC → `market.venue.exchange`
+- **SELL orders**: Approve Conditional Tokens → `market.venue.exchange`
+
+**NegRisk Markets:**
+- **BUY orders**: Approve USDC → `market.venue.exchange`
+- **SELL orders**: Approve Conditional Tokens → **both** `market.venue.exchange` AND `market.venue.adapter`
+
+### Quick Setup
+
+Run the approval setup script:
+
+```bash
+# Configure your wallet in .env
+python examples/00_setup_approvals.py
+```
+
+### Manual Approval Example
+
+```python
+from web3 import Web3
+from eth_account import Account
+from limitless_sdk.markets import MarketFetcher
+from limitless_sdk.utils.constants import get_contract_address
+
+# 1. Fetch market to get venue addresses
+market = await market_fetcher.get_market('market-slug')
+
+# 2. Initialize Web3 and wallet
+w3 = Web3(Web3.HTTPProvider('https://mainnet.base.org'))
+account = Account.from_key(private_key)
+
+# 3. Get contract addresses
+usdc_address = get_contract_address("USDC", 8453)
+ctf_address = get_contract_address("CTF", 8453)
+
+# 4. Create contract instances
+usdc = w3.eth.contract(address=usdc_address, abi=ERC20_APPROVE_ABI)
+ctf = w3.eth.contract(address=ctf_address, abi=ERC1155_APPROVAL_ABI)
+
+# 5. Approve USDC for BUY orders
+max_uint256 = 2**256 - 1
+tx = usdc.functions.approve(venue.exchange, max_uint256).build_transaction({...})
+signed_tx = account.sign_transaction(tx)
+w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+
+# 6. Approve CT for SELL orders
+tx = ctf.functions.setApprovalForAll(venue.exchange, True).build_transaction({...})
+signed_tx = account.sign_transaction(tx)
+w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+
+# 7. For NegRisk SELL orders, also approve adapter
+if market.neg_risk_request_id:
+    tx = ctf.functions.setApprovalForAll(venue.adapter, True).build_transaction({...})
+    signed_tx = account.sign_transaction(tx)
+    w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+```
+
+For complete examples with proper ABIs and transaction handling, see [examples/00_setup_approvals.py](./examples/00_setup_approvals.py).
+
 ## Order Management
 
 The SDK supports two order types:
@@ -167,7 +241,7 @@ The SDK supports two order types:
 
 ```python
 from limitless_sdk.orders import OrderClient
-from limitless_sdk.types import Side, OrderType, MarketType, UserData
+from limitless_sdk.types import Side, OrderType, UserData
 
 # Setup order client
 user_data = UserData(
@@ -178,8 +252,7 @@ user_data = UserData(
 order_client = OrderClient(
     http_client=http_client,
     wallet=account,
-    user_data=user_data,
-    market_type=MarketType.CLOB
+    user_data=user_data
 )
 
 # Get token ID from market
@@ -350,7 +423,6 @@ The SDK uses Pydantic models for type safety:
 - **`UserData`**: User profile data
 - **`Side`**: `BUY` / `SELL` enum
 - **`OrderType`**: `GTC` / `FOK` enum
-- **`MarketType`**: `CLOB` enum
 - **`LogLevel`**: `DEBUG` / `INFO` / `WARN` / `ERROR` enum
 
 ## Examples
@@ -403,6 +475,68 @@ For questions or issues:
 
 ## Key Features
 
+### Venue Caching System
+
+The SDK automatically caches venue data (exchange and adapter contract addresses) to optimize performance when creating multiple orders for the same market.
+
+**How it works**:
+
+```python
+# Fetch market once
+market_fetcher = MarketFetcher(http_client)
+market = await market_fetcher.get_market("bitcoin-2024")
+
+# Venue data is now cached automatically
+# {
+#   exchange: "0xa4409D988CA2218d956BeEFD3874100F444f0DC3",  # for order signing
+#   adapter: "0x5a38afc17F7E97ad8d6C547ddb837E40B4aEDfC6"    # for NegRisk approvals
+# }
+
+# Create multiple orders without additional API calls
+order_client = OrderClient(http_client, wallet, user_data)
+
+# Venue is fetched from cache (no API call)
+order1 = await order_client.create_order(
+    token_id=str(market.tokens.yes),
+    price=0.50,
+    size=5.0,
+    side=Side.BUY,
+    order_type=OrderType.GTC,
+    market_slug=market.slug
+)
+
+# Still using cached venue data
+order2 = await order_client.create_order(
+    token_id=str(market.tokens.no),
+    price=0.30,
+    size=10.0,
+    side=Side.BUY,
+    order_type=OrderType.GTC,
+    market_slug=market.slug
+)
+```
+
+**Performance benefits**:
+- Eliminates redundant `/venues/:slug` API calls
+- Faster order creation (cache hit vs network request)
+- Reduced API rate limit usage
+
+**Debug logging**: Enable debug mode to see venue cache operations:
+
+```python
+logger = ConsoleLogger(level=LogLevel.DEBUG)
+http_client = HttpClient(base_url="...", logger=logger)
+
+# You'll see:
+# [Limitless SDK] Venue cached for order signing {
+#   slug: 'bitcoin-2024',
+#   exchange: '0xa4409D988CA2218d956BeEFD3874100F444f0DC3',
+#   adapter: '0x5a38afc17F7E97ad8d6C547ddb837E40B4aEDfC6',
+#   cacheSize: 1
+# }
+# [Limitless SDK] Venue cache hit { slug: 'bitcoin-2024', exchange: '0xa4...' }
+```
+
 ### Token ID Extraction
 
 CLOB markets use a tokens object for YES/NO positions:
@@ -446,6 +580,24 @@ points = positions['accumulativePoints']
   ```
 
 ## Changelog
+
+### v3.0.1
+
+- **Venue Caching System**: Automatic venue data caching for improved performance
+  - `MarketFetcher` now caches venue data (exchange, adapter addresses) per market
+  - Eliminates redundant API calls when creating multiple orders for the same market
+  - Venue cache automatically populated via `get_market()` calls
+  - Performance optimization: fetch market once, reuse venue data for all orders
+- **Enhanced Debug Logging**: Improved observability for venue operations
+  - `get_market()`: Logs venue cache status with exchange/adapter addresses and cache size
+  - `get_venue()`: Logs cache hits/misses for performance monitoring
+  - Warning logs when market doesn't have venue data
+  - Debug mode shows complete venue lifecycle (fetch → cache → reuse)
+- **Documentation**: Comprehensive venue system documentation
+  - New venue system section in trading guide explaining exchange/adapter roles
+  - Best practices guide for venue caching patterns
+  - Token approval requirements per market type (CLOB vs NegRisk)
+  - Complete examples showing optimal marketFetcher sharing patterns
 
 ### v0.3.0
 

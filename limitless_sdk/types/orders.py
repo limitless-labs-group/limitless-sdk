@@ -47,18 +47,6 @@ class SignatureType(IntEnum):
     POLY_PROXY = 2
 
 
-class MarketType(Enum):
-    """Market type enumeration for contract addressing.
-
-    Attributes:
-        CLOB: Central Limit Order Book
-        NEGRISK: Negative Risk market
-    """
-
-    CLOB = "CLOB"
-    NEGRISK = "NEGRISK"
-
-
 class UnsignedOrder(BaseModel):
     """Unsigned order structure.
 
@@ -190,20 +178,17 @@ class OrderSigningConfig(BaseModel):
 
     Attributes:
         chain_id: Chain ID (8453 for Base mainnet, 84532 for Base testnet)
-        contract_address: Verifying contract address
-        market_type: Market type (CLOB or NEGRISK)
+        contract_address: Verifying contract address (from venue.exchange)
 
     Example:
         >>> config = OrderSigningConfig(
         ...     chain_id=8453,
-        ...     contract_address="0xa4409D988CA2218d956BeEFD3874100F444f0DC3",
-        ...     market_type=MarketType.CLOB
+        ...     contract_address="0xa4409D988CA2218d956BeEFD3874100F444f0DC3"
         ... )
     """
 
     chain_id: int
     contract_address: str
-    market_type: MarketType
 
 
 class OrderArgs(BaseModel):
