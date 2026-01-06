@@ -23,7 +23,6 @@ from limitless_sdk.auth import MessageSigner, Authenticator
 from limitless_sdk.orders import OrderClient
 from limitless_sdk.types import (
     LoginOptions,
-    MarketType,
     UserData,
 )
 
@@ -67,7 +66,6 @@ async def main():
             http_client=http_client,
             wallet=account,
             user_data=user_data,
-            market_type=MarketType.CLOB,
         )
 
         # Option 1: Cancel single order by ID

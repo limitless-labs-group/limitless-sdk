@@ -7,7 +7,6 @@ from ..api.http_client import HttpClient
 from ..types.orders import (
     Side,
     OrderType,
-    MarketType,
     SignedOrder,
     CreateOrderDto,
     OrderResponse,
@@ -36,7 +35,6 @@ class OrderClient:
         http_client: HTTP client for API requests
         wallet: Ethereum account for signing
         user_data: User data containing userId and feeRateBps
-        market_type: Market type for auto-configuration (default: CLOB)
         signing_config: Custom signing configuration (optional)
         market_fetcher: Shared MarketFetcher instance for venue caching (optional)
         logger: Optional logger for debugging
@@ -46,7 +44,7 @@ class OrderClient:
         >>> from limitless_sdk.api import HttpClient
         >>> from limitless_sdk.orders import OrderClient
         >>> from limitless_sdk.markets import MarketFetcher
-        >>> from limitless_sdk.types import UserData, Side, OrderType, MarketType
+        >>> from limitless_sdk.types import UserData, Side, OrderType
         >>>
         >>> # Setup
         >>> account = Account.from_key(private_key)
@@ -61,7 +59,6 @@ class OrderClient:
         ...     http_client=http_client,
         ...     wallet=account,
         ...     user_data=user_data,
-        ...     market_type=MarketType.CLOB,
         ...     market_fetcher=market_fetcher
         ... )
         >>>
@@ -84,7 +81,6 @@ class OrderClient:
         http_client: HttpClient,
         wallet: Account,
         user_data: UserData,
-        market_type: MarketType = MarketType.CLOB,
         signing_config: Optional[OrderSigningConfig] = None,
         market_fetcher: Optional[MarketFetcher] = None,
         logger: Optional[ILogger] = None,
@@ -95,7 +91,6 @@ class OrderClient:
             http_client: HTTP client for API requests
             wallet: Ethereum account for signing
             user_data: User data (userId, feeRateBps)
-            market_type: Market type (CLOB or NEGRISK)
             signing_config: Custom signing config (optional)
             market_fetcher: Shared MarketFetcher for venue caching (optional)
             logger: Optional logger
@@ -122,7 +117,7 @@ class OrderClient:
         if signing_config:
             self._signing_config = signing_config
         else:
-            # Auto-configure from market type
+            # Auto-configure base settings
             import os
 
             # Read chain ID from environment or use default
@@ -136,15 +131,11 @@ class OrderClient:
             self._signing_config = OrderSigningConfig(
                 chain_id=chain_id,
                 contract_address=contract_address,
-                market_type=market_type,
             )
 
             self._logger.info(
                 "Auto-configured signing (contract address from venue)",
-                {
-                    "chain_id": chain_id,
-                    "market_type": market_type.value,
-                },
+                {"chain_id": chain_id},
             )
 
     async def create_order(
@@ -270,12 +261,15 @@ class OrderClient:
         dynamic_signing_config = OrderSigningConfig(
             chain_id=self._signing_config.chain_id,
             contract_address=venue.exchange,
-            market_type=self._signing_config.market_type,
         )
 
         self._logger.debug(
             "Using venue for order signing",
-            {"market_slug": market_slug, "exchange": venue.exchange}
+            {
+                "market_slug": market_slug,
+                "exchange": venue.exchange,
+                "adapter": venue.adapter,
+            }
         )
 
         # Step 2: Build unsigned order

@@ -20,7 +20,6 @@ from limitless_sdk.types import (
     LoginOptions,
     Side,
     OrderType,
-    MarketType,
     UserData,
 )
 
@@ -71,7 +70,6 @@ async def main():
             http_client=http_client,
             wallet=account,
             user_data=user_data,
-            market_type=MarketType.CLOB,
         )
 
         # Place GTC order

@@ -54,8 +54,8 @@ def get_contract_address(
     - USDC: Collateral token (ERC-20) for all markets
     - CTF: Conditional Token Framework (ERC-1155) where outcome tokens live
 
-    The venue.exchange address (dynamic per market) is obtained from:
-    - market.venue.exchange - Exchange/DEX contract that needs operator approval
+    The venue.exchange address (CLOB/NEGRISK per market) is obtained from:
+    - market.venue.exchange - Exchange contract that needs operator approval
 
     For NegRisk markets, also approve CT to venue.adapter:
     - CTF.setApprovalForAll(venue.adapter, true)

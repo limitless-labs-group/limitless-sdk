@@ -22,15 +22,14 @@ class OrderSigner:
     Example:
         >>> from eth_account import Account
         >>> from limitless_sdk.orders import OrderSigner
-        >>> from limitless_sdk.types import OrderSigningConfig, MarketType
+        >>> from limitless_sdk.types import OrderSigningConfig
         >>>
         >>> account = Account.from_key(private_key)
         >>> signer = OrderSigner(account)
         >>>
         >>> config = OrderSigningConfig(
         ...     chain_id=8453,
-        ...     contract_address="0x...",
-        ...     market_type=MarketType.CLOB
+        ...     contract_address="0x..."
         ... )
         >>>
         >>> signature = await signer.sign_order(unsigned_order, config)
@@ -56,7 +55,7 @@ class OrderSigner:
 
         Args:
             order: Unsigned order to sign
-            config: Signing configuration (chain ID, contract address, market type)
+            config: Signing configuration (chain ID, verifying contract)
 
         Returns:
             Signature as hex string with 0x prefix
@@ -71,8 +70,7 @@ class OrderSigner:
             "Signing order with EIP-712",
             {
                 "chain_id": config.chain_id,
-                "contract": config.contract_address,
-                "market_type": config.market_type.value,
+                "verifying_contract": config.contract_address,
             },
         )
 
@@ -93,7 +91,7 @@ class OrderSigner:
             {
                 "signature_preview": signature[:10] + "...",
                 "chain_id": config.chain_id,
-                "market_type": config.market_type.value,
+                "verifying_contract": config.contract_address,
             },
         )
 
