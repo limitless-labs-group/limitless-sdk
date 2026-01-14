@@ -284,6 +284,7 @@ class WebSocketClient:
         Raises:
             ConnectionError: If not connected
             ValueError: If subscription fails
+            asyncio.TimeoutError: If subscription acknowledgment times out
 
         Example:
             >>> # Subscribe to market prices (CLOB orderbook + AMM prices)
@@ -306,9 +307,19 @@ class WebSocketClient:
 
         self._logger.info("Subscribing to channel", {"channel": channel, "options": options})
 
-        # Emit subscription event to /markets namespace (fire and forget, like TS SDK)
-        await self._sio.emit(channel, options, namespace=DEFAULT_NAMESPACE)
-        self._logger.info("Subscribed successfully", {"channel": channel, "options": options})
+        try:
+            await self._sio.emit(
+                channel,
+                options,
+                namespace=DEFAULT_NAMESPACE
+            )
+
+            self._logger.info("Subscription request sent", {"channel": channel, "options": options})
+
+        except Exception as e:
+            self._subscriptions.pop(subscription_key, None)
+            self._logger.error("Subscription error", e, {"channel": channel})
+            raise
 
     async def unsubscribe(
         self,
@@ -526,9 +537,14 @@ class WebSocketClient:
         for subscription_key, options in list(self._subscriptions.items()):
             channel = self._get_channel_from_key(subscription_key)
             try:
-                # Re-subscribe (subscription already in dict, just emit event to /markets namespace)
-                await self._sio.emit(channel, options, namespace=DEFAULT_NAMESPACE)
+                # just re-sub here
+                await self._sio.emit(
+                    channel,
+                    options,
+                    namespace=DEFAULT_NAMESPACE
+                )
                 self._logger.info("Re-subscribed", {"channel": channel, "options": options})
+
             except Exception as e:
                 self._logger.error("Failed to re-subscribe", e, {"channel": channel, "options": options})
 
