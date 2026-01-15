@@ -86,31 +86,20 @@ class Authenticator:
             Authentication result with session cookie and user profile
 
         Raises:
-            ValueError: If smart wallet required but not provided
             AuthenticationError: If authentication fails
             APIError: If API request fails
 
         Example:
             >>> # EOA authentication
             >>> result = await authenticator.authenticate()
-            >>>
-            >>> # Etherspot authentication
-            >>> result = await authenticator.authenticate(
-            ...     LoginOptions(client="etherspot", smart_wallet="0x...")
-            ... )
         """
         options = options or LoginOptions()
         client = options.client
 
         self._logger.info(
             "Starting authentication",
-            {"client": client, "has_smart_wallet": options.smart_wallet is not None},
+            {"client": client},
         )
-
-        # Validate Etherspot requires smart wallet
-        if client == "etherspot" and not options.smart_wallet:
-            self._logger.error("Smart wallet address required for ETHERSPOT client")
-            raise ValueError("Smart wallet address is required for ETHERSPOT client")
 
         try:
             signing_message = await self.get_signing_message()
@@ -121,8 +110,6 @@ class Authenticator:
             self._logger.debug("Sending authentication request", {"client": client})
 
             payload = {"client": client}
-            if options.smart_wallet:
-                payload["smartWallet"] = options.smart_wallet
 
             response = await self._http_client.post_with_response(
                 "/auth/login", payload, headers=headers

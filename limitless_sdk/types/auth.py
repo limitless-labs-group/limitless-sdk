@@ -44,22 +44,14 @@ class LoginOptions(BaseModel):
     """Login configuration options.
 
     Args:
-        client: Authentication client type ('eoa' or 'etherspot')
-        smart_wallet: Smart wallet address (required for 'etherspot')
+        client: Authentication client type ('eoa')
 
     Example:
         >>> # EOA authentication
         >>> options = LoginOptions(client="eoa")
-        >>>
-        >>> # Etherspot authentication
-        >>> options = LoginOptions(
-        ...     client="etherspot",
-        ...     smart_wallet="0x..."
-        ... )
     """
 
-    client: Literal["eoa", "etherspot"] = "eoa"
-    smart_wallet: Optional[str] = Field(None, alias="smartWallet")
+    client: Literal["eoa"] = "eoa"
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -80,7 +72,6 @@ class UserProfile(BaseModel):
         pfp_url: Profile picture URL (optional)
         bio: User bio (optional)
         social_url: Social media URL (optional)
-        smart_wallet: Smart wallet address (optional)
         trade_wallet_option: Trade wallet option (optional)
         embedded_account: Embedded account address (optional)
 
@@ -110,7 +101,6 @@ class UserProfile(BaseModel):
     pfp_url: Optional[str] = Field(None, alias="pfpUrl")
     bio: Optional[str] = None
     social_url: Optional[str] = Field(None, alias="socialUrl")
-    smart_wallet: Optional[str] = Field(None, alias="smartWallet")
     trade_wallet_option: Optional[str] = Field(None, alias="tradeWalletOption")
     embedded_account: Optional[str] = Field(None, alias="embeddedAccount")
 

@@ -20,8 +20,7 @@ class AuthenticatedClient:
     Args:
         http_client: HTTP client instance
         authenticator: Authenticator instance
-        client: Authentication client type ('eoa' or 'etherspot')
-        smart_wallet: Optional smart wallet address (required for 'etherspot')
+        client: Authentication client type ('eoa')
         logger: Optional logger for debugging
         max_retries: Maximum retry attempts for auth errors (default: 1)
 
@@ -56,7 +55,6 @@ class AuthenticatedClient:
         http_client: HttpClient,
         authenticator: Authenticator,
         client: str = "eoa",
-        smart_wallet: Optional[str] = None,
         logger: Optional[ILogger] = None,
         max_retries: int = 1,
     ):
@@ -66,14 +64,12 @@ class AuthenticatedClient:
             http_client: HTTP client instance
             authenticator: Authenticator instance
             client: Authentication client type
-            smart_wallet: Optional smart wallet address
             logger: Optional logger
             max_retries: Maximum retry attempts
         """
         self._http_client = http_client
         self._authenticator = authenticator
         self._client = client
-        self._smart_wallet = smart_wallet
         self._logger = logger or NoOpLogger()
         self._max_retries = max_retries
 
@@ -137,7 +133,7 @@ class AuthenticatedClient:
         self._logger.debug("Re-authenticating with API")
 
         await self._authenticator.authenticate(
-            LoginOptions(client=self._client, smart_wallet=self._smart_wallet)
+            LoginOptions(client=self._client)
         )
 
         self._logger.info("Re-authentication successful")
