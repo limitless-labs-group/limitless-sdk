@@ -10,7 +10,8 @@ Setup:
 
 Note:
     FOK orders use maker_amount instead of price/size
-    Amount = total USDC to spend (e.g., 10.0 = $10 USDC)
+    For SELL orders: maker_amount = number of shares to sell (e.g., 18.64 shares)
+    For BUY orders: maker_amount = total USDC to spend (e.g., 10.0 = $10 USDC)
 """
 
 import asyncio
@@ -77,11 +78,11 @@ async def main():
             user_data=user_data,
         )
 
-        # Place FOK BUY order
+        # Place FOK SELL order
         order = await order_client.create_order(
             token_id=token_id,
-            maker_amount=10.0,   # $10 USDC total spend
-            side=Side.SELL,  ## one difference
+            maker_amount=10.0,   # Sell 10.0 shares (ensure you have enough balance)
+            side=Side.SELL,
             order_type=OrderType.FOK,
             market_slug=market.slug,
         )

@@ -75,8 +75,8 @@ async def main():
         # Place GTC order
         order = await order_client.create_order(
             token_id=token_id,
-            price=0.50,      # min price that will execute, can be executed with better one 
-            size=5.0,        # amount of shares you wanna buy
+            price=0.50,      # Maximum price willing to pay (can execute at lower price)
+            size=5.0,        # Amount of shares you want to buy
             side=Side.BUY,
             order_type=OrderType.GTC,
             market_slug=market.slug,

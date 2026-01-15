@@ -171,10 +171,12 @@ for order in orderbook.get('orders', []):
 ### Required Approvals
 
 **CLOB Markets:**
+
 - **BUY orders**: Approve USDC → `market.venue.exchange`
 - **SELL orders**: Approve Conditional Tokens → `market.venue.exchange`
 
 **NegRisk Markets:**
+
 - **BUY orders**: Approve USDC → `market.venue.exchange`
 - **SELL orders**: Approve Conditional Tokens → **both** `market.venue.exchange` AND `market.venue.adapter`
 
@@ -274,12 +276,28 @@ print(f"Status: {order.order.status}")
 
 ### Create FOK Orders
 
+FOK (Fill-Or-Kill) orders either execute immediately and completely or are cancelled. They use `maker_amount` instead of `price`/`size` parameters.
+
+**Parameter Semantics**:
+
+- **BUY orders**: `maker_amount` = total USDC to spend (e.g., 10.0 = $10 USDC)
+- **SELL orders**: `maker_amount` = number of shares to sell (e.g., 18.64 shares)
+
 ```python
-# FOK orders use maker_amount instead of price/size
+# FOK BUY order - spend $10 USDC
 order = await order_client.create_order(
     token_id=token_id,
-    maker_amount=10.0,   # Total USDC to spend
+    maker_amount=10.0,   # Spend $10 USDC
     side=Side.BUY,
+    order_type=OrderType.FOK,
+    market_slug=market.slug
+)
+
+# FOK SELL order - sell 18.64 shares
+order = await order_client.create_order(
+    token_id=token_id,
+    maker_amount=18.64,  # Sell 18.64 shares
+    side=Side.SELL,
     order_type=OrderType.FOK,
     market_slug=market.slug
 )
@@ -517,6 +535,7 @@ order2 = await order_client.create_order(
 ```
 
 **Performance benefits**:
+
 - Eliminates redundant `/venues/:slug` API calls
 - Faster order creation (cache hit vs network request)
 - Reduced API rate limit usage
@@ -567,67 +586,172 @@ points = positions['accumulativePoints']
 
 ### Order Type Parameters
 
-- **GTC orders**: `price` + `size`
+- **GTC orders**: Use `price` + `size` parameters
 
   ```python
-  price=0.50,  # Minimum acceptable price
-  size=5.0     # Number of shares
+  price=0.50,  # Minimum acceptable price (0-1 range)
+  size=5.0     # Number of shares to buy/sell
   ```
 
-- **FOK orders**: `maker_amount`
+- **FOK orders**: Use `maker_amount` parameter (semantics differ by side)
+
   ```python
-  maker_amount=10.0  # Total USDC to spend/receive
+  # BUY: Total USDC to spend
+  maker_amount=10.0  # Spend $10 USDC to buy shares
+
+  # SELL: Number of shares to sell
+  maker_amount=18.64 # Sell 18.64 shares for USDC
   ```
 
 ## Changelog
 
-### v3.0.1
+### v1.0.0
 
-- **Venue Caching System**: Automatic venue data caching for improved performance
-  - `MarketFetcher` now caches venue data (exchange, adapter addresses) per market
-  - Eliminates redundant API calls when creating multiple orders for the same market
-  - Venue cache automatically populated via `get_market()` calls
-  - Performance optimization: fetch market once, reuse venue data for all orders
-- **Enhanced Debug Logging**: Improved observability for venue operations
-  - `get_market()`: Logs venue cache status with exchange/adapter addresses and cache size
-  - `get_venue()`: Logs cache hits/misses for performance monitoring
-  - Warning logs when market doesn't have venue data
-  - Debug mode shows complete venue lifecycle (fetch → cache → reuse)
-- **Documentation**: Comprehensive venue system documentation
-  - New venue system section in trading guide explaining exchange/adapter roles
-  - Best practices guide for venue caching patterns
-  - Token approval requirements per market type (CLOB vs NegRisk)
-  - Complete examples showing optimal marketFetcher sharing patterns
+**Release Date**: January 2026
 
-### v0.3.0
+This is the first stable, production-ready release of the Limitless Exchange Python SDK, designated as a Long-Term Support (LTS) version. This release consolidates all features and improvements from pre-release versions into a stable, well-documented, and thoroughly tested SDK.
 
-- **Architecture**: Refactored to modular component structure
-  - `HttpClient` with connection pooling via aiohttp
-  - `OrderClient` for order management with automatic signing
-  - `MarketFetcher` for market data operations
-  - `PortfolioFetcher` for portfolio/positions queries
-- **WebSocket Support**: Real-time orderbook updates via `WebSocketClient`
+#### Core Features
+
+- **🔐 Authentication & Security**
+
+  - EIP-712 message signing with EOA (Externally Owned Account) support
+  - `MessageSigner` for cryptographic signing operations
+  - `Authenticator` for EOA authentication flow
+  - `AuthenticatedClient` wrapper with automatic session re-authentication
+  - Secure session management with automatic expiration handling
+
+- **📊 Market Data Access**
+
+  - `MarketFetcher` with intelligent venue caching system
+  - Active markets retrieval with pagination and sorting
+  - Market-specific data fetching (slug-based)
+  - Real-time orderbook data
+  - Automatic venue data caching for performance optimization
+  - Cache-aware market operations (eliminates redundant API calls)
+
+- **📋 Order Management**
+
+  - `OrderClient` for comprehensive order operations
+  - **GTC Orders** (Good-Till-Cancelled): `price` + `size` parameters
+  - **FOK Orders** (Fill-Or-Kill): `maker_amount` parameter
+    - BUY: maker_amount = total USDC to spend
+    - SELL: maker_amount = number of shares to sell
+  - Automatic EIP-712 order signing with venue.exchange integration
+  - Dynamic venue resolution from cache or API
+  - Order cancellation (single order and batch operations)
+  - Maker match tracking and order status monitoring
+
+- **💼 Portfolio Management**
+
+  - `PortfolioFetcher` for position tracking
+  - CLOB position data retrieval
+  - Trading history access
+  - Accumulative points tracking
+  - Portfolio-wide analytics
+
+- **🌐 WebSocket Support**
+
+  - `WebSocketClient` for real-time orderbook updates
   - Event-based subscription system with decorators
   - Auto-reconnect functionality with configurable delays
   - Typed event handlers for orderbook updates
-- **Authentication**: Enhanced authentication system
-  - `MessageSigner` for EIP-712 message signing
-  - `Authenticator` for EOA authentication flow
-  - `AuthenticatedClient` wrapper for automatic session re-authentication
-- **HTTP Client**: Structured HTTP client with advanced features
-  - Connection pooling and session management
-  - Global and per-request custom headers
-  - Configurable logging with `ConsoleLogger` and log levels
-  - Retry decorator (`@retry_on_errors`) with customizable delays
-- **Order System**: Improved order handling
-  - Support for GTC (Good-Till-Cancelled) orders with `price` + `size`
-  - Support for FOK (Fill-Or-Kill) orders with `maker_amount`
-  - Automatic order signing and submission
-  - Order cancellation (single and batch)
-- **Documentation**: Comprehensive examples directory with 9 working examples
-- **README**: Updated to reflect actual implementation patterns
+  - Connection lifecycle management
 
-### v0.2.0
+- **🔄 Retry & Error Handling**
+
+  - `@retry_on_errors` decorator with customizable retry logic
+  - Configurable delays and maximum retry attempts
+  - Status code-based retry strategies
+  - Automatic session re-authentication on 401/403 errors
+  - Comprehensive `APIError` exception handling
+
+- **📝 Logging & Debugging**
+
+  - `ConsoleLogger` with configurable log levels (DEBUG, INFO, WARN, ERROR)
+  - Enhanced debug logging for venue operations
+  - Venue cache monitoring (hits/misses)
+  - Request/response logging with header visibility
+  - Performance tracking and observability
+
+- **🛡️ Token Approval System**
+  - Complete token approval setup guide
+  - CLOB market approval workflows
+  - NegRisk market dual-approval requirements
+  - Web3 integration examples
+  - ERC-20 (USDC) and ERC-1155 (Conditional Tokens) support
+
+#### Performance & Optimization
+
+- **Venue Caching**: Automatic venue data caching eliminates redundant API calls
+- **Connection Pooling**: Efficient HTTP client with aiohttp connection pooling
+- **Async/Await**: Full async support for optimal performance
+- **Session Management**: Persistent HTTP sessions with cookie handling
+- **Custom Headers**: Global and per-request header configuration
+
+#### Documentation & Examples
+
+- **Comprehensive README**: 650+ lines covering all features
+- **9 Working Examples**:
+
+  1. `00_setup_approvals.py` - Token approval setup
+  2. `01_authentication.py` - EOA authentication
+  3. `02_create_buy_gtc_order.py` - GTC BUY orders
+  4. `03_cancel_gtc_order.py` - Order cancellation
+  5. `04_create_sell_gtc_order.py` - GTC SELL orders
+  6. `05_create_buy_fok_order.py` - FOK BUY orders
+  7. `06_create_sell_fok_order.py` - FOK SELL orders
+  8. `06_retry_handling.py` - Custom retry logic
+  9. `07_auto_retry_second_sample.py` - Auto-retry patterns
+  10. `08_websocket_events.py` - Real-time WebSocket events
+
+- **Documentation Quality Improvements**:
+  - Accurate FOK order parameter documentation (BUY vs SELL semantics)
+  - Clear GTC order price parameter explanations
+  - Comprehensive venue system documentation
+  - Token approval requirements by market type
+  - Best practices for venue caching and performance
+
+#### Architecture
+
+- **Modular Design**: Clean separation of concerns with focused components
+- **Type Safety**: Full Pydantic model integration for type validation
+- **Extensibility**: Easy to extend with custom authentication or signing logic
+- **Standards Compliance**: Follows Python async best practices
+
+#### Quality Assurance
+
+- Production-ready code quality
+- Comprehensive error handling
+- Well-documented public APIs
+- Consistent coding patterns
+- Validated against live Base mainnet
+
+#### Breaking Changes from Pre-Release
+
+None - this is the first stable release. All pre-release versions (v0.x) were development versions leading to this LTS release.
+
+---
+
+### Pre-Release Versions
+
+The following versions were development releases leading to v1.0.0:
+
+#### v0.3.1 (Pre-release)
+
+- Venue caching system implementation
+- Enhanced debug logging
+- Venue system documentation
+
+#### v0.3.0 (Pre-release)
+
+- Modular architecture refactor
+- WebSocket support
+- Enhanced authentication system
+- HTTP client improvements
+- Order system enhancements
+
+#### v0.2.0 (Pre-release)
 
 - Added `additional_headers` parameter to `HttpClient`
 - Global and per-request header configuration
@@ -637,10 +761,23 @@ points = positions['accumulativePoints']
 - Comprehensive examples directory
 - Fixed license configuration in pyproject.toml
 
-### v0.1.0
+#### v0.1.0 (Pre-release)
 
 - Initial release
 - EOA authentication with EIP-712 signing
 - Market data access
 - GTC and FOK order support
 - Portfolio tracking
+
+---
+
+## LTS Support Policy
+
+**v1.0.0 LTS** will receive:
+
+- Security updates and critical bug fixes
+- Compatibility maintenance with Limitless Exchange API
+- Community support and issue resolution
+- Documentation updates and improvements
+
+For production deployments, we recommend using the LTS version for stability and long-term support.
