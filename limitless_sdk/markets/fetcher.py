@@ -122,11 +122,14 @@ class MarketFetcher:
         Automatically caches venue information for efficient order creation.
         After calling this method, use get_venue(slug) to retrieve cached venue.
 
+        The returned Market object has http_client attached, enabling fluent API:
+            market.get_user_orders()
+
         Args:
             slug: Market slug identifier
 
         Returns:
-            Market object
+            Market object with http_client attached for fluent API
 
         Raises:
             APIError: If API request fails or market not found
@@ -135,6 +138,10 @@ class MarketFetcher:
             >>> market = await fetcher.get_market("bitcoin-price-2024")
             >>> print(f"Market: {market.title}")
             >>> print(f"Description: {market.description}")
+            >>>
+            >>> # Fluent API - get user orders for this market
+            >>> orders = await market.get_user_orders()
+            >>> print(f"You have {len(orders)} orders")
             >>>
             >>> # Venue is now cached
             >>> venue = fetcher.get_venue("bitcoin-price-2024")
@@ -145,6 +152,9 @@ class MarketFetcher:
         try:
             response_data = await self._http_client.get(f"/markets/{slug}")
             market = Market(**response_data)
+
+            # Attach http_client for fluent API methods like get_user_orders()
+            market._http_client = self._http_client
 
             # Cache venue if present
             if market.venue:

@@ -17,10 +17,11 @@ This is the first stable, production-ready release of the Limitless Exchange Pyt
 
 #### Core Features
 
-- EIP-712 message signing with EOA (Externally Owned Account) support
-- `MessageSigner` for cryptographic signing operations
-- `Authenticator` for EOA authentication flow
-- `AuthenticatedClient` wrapper with automatic session re-authentication
+- **Authentication**
+  - API key authentication with X-API-Key header
+  - Automatic loading from `LIMITLESS_API_KEY` environment variable
+  - EIP-712 message signing for order creation (via `OrderSigner`)
+  - `AuthenticationError` for authentication failure handling
 - `MarketFetcher` with intelligent venue caching system
 - `OrderClient` for comprehensive order management
 - `PortfolioFetcher` for position tracking and trading history
@@ -37,7 +38,7 @@ This is the first stable, production-ready release of the Limitless Exchange Pyt
 
 - Automatic venue data caching to eliminate redundant API calls
 - Connection pooling via aiohttp for efficient HTTP requests
-- Persistent HTTP sessions with cookie handling
+- API key authentication with automatic header injection
 - Cache-aware market operations
 - Dynamic venue resolution from cache or API
 
@@ -46,8 +47,8 @@ This is the first stable, production-ready release of the Limitless Exchange Pyt
 - `@retry_on_errors` decorator with customizable retry logic
 - Configurable delays and maximum retry attempts
 - Status code-based retry strategies
-- Automatic session re-authentication on 401/403 errors
-- Comprehensive `APIError` exception handling
+- Comprehensive `APIError` exception handling with `AuthenticationError`
+- Callback hooks for monitoring retry attempts
 
 #### WebSocket Features
 
@@ -86,7 +87,7 @@ This is the first stable, production-ready release of the Limitless Exchange Pyt
 - Comprehensive README (750+ lines)
 - 10 working examples covering all major features:
   - Token approval setup
-  - EOA authentication
+  - API key authentication with portfolio data
   - GTC BUY/SELL orders
   - FOK BUY/SELL orders
   - Order cancellation

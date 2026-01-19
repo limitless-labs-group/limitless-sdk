@@ -10,7 +10,7 @@ Example:
     >>> # Create client
     >>> client = WebSocketClient(
     ...     WebSocketConfig(
-    ...         session_cookie='your-session-cookie',
+    ...         api_key='your-api-key',
     ...         auto_reconnect=True
     ...     )
     ... )

@@ -4,11 +4,11 @@ A minimalistic, async Python SDK for interacting with the Limitless Exchange API
 
 ## Features
 
-- 🔐 **Ethereum wallet authentication** - EIP-712 message signing with EOA support
+- 🔐 **API Key authentication** - Simple and secure authentication with API keys
 - 📈 **Market data access** - Markets, orderbooks, and historical data
 - 📋 **Order management** - GTC and FOK orders with automatic signing
-- 💼 **Portfolio tracking** - Positions and trading history
-- 🔄 **Automatic retries** - Configurable retry logic with session re-authentication
+- 💼 **Portfolio tracking** - Positions and user history
+- 🔄 **Automatic retries** - Configurable retry logic with error handling
 - 🌐 **WebSocket support** - Real-time orderbook updates
 - 🛡️ **Custom headers** - Global and per-request header configuration
 - ⚡ **Async/await support** - Modern async Python with aiohttp
@@ -25,36 +25,25 @@ pip install limitless-sdk
 ```python
 import asyncio
 import os
-from eth_account import Account
 from limitless_sdk.api import HttpClient
-from limitless_sdk.auth import MessageSigner, Authenticator
 from limitless_sdk.markets import MarketFetcher
 from limitless_sdk.portfolio import PortfolioFetcher
-from limitless_sdk.types import LoginOptions
 
 async def main():
-    # Setup
-    account = Account.from_key(os.getenv("PRIVATE_KEY"))
+    # Setup - API key automatically loaded from LIMITLESS_API_KEY env variable
     http_client = HttpClient(base_url="https://api.limitless.exchange")
 
     try:
-        # Authenticate
-        signer = MessageSigner(account)
-        authenticator = Authenticator(http_client, signer)
-        result = await authenticator.authenticate(LoginOptions(client="eoa"))
-
-        print(f"Authenticated: {result.profile.account}")
-
         # Get markets
         market_fetcher = MarketFetcher(http_client)
-        markets = await market_fetcher.get_markets()
-        print(f"Found {markets['totalCount']} markets")
+        markets = await market_fetcher.get_active_markets()
+        print(f"Found {markets.total_markets_count} markets")
 
         # Fetch specific market (caches venue data for orders)
         market = await market_fetcher.get_market("bitcoin-2024")
         print(f"Market: {market.title}")
 
-        # Get positions
+        # Get positions (requires authentication)
         portfolio_fetcher = PortfolioFetcher(http_client)
         positions = await portfolio_fetcher.get_positions()
         print(f"CLOB positions: {len(positions['clob'])}")
@@ -68,30 +57,42 @@ if __name__ == "__main__":
 
 ## Authentication
 
-The SDK uses EIP-712 message signing for authentication with EOA (Externally Owned Account) wallets.
+The SDK uses API keys for authentication. API keys can be obtained from your Limitless Exchange account settings.
 
 ### Basic Authentication
 
 ```python
-from eth_account import Account
+import os
 from limitless_sdk.api import HttpClient
-from limitless_sdk.auth import MessageSigner, Authenticator
-from limitless_sdk.types import LoginOptions
 
-# Create account from private key
-account = Account.from_key("0x...")
+# Option 1: Automatic from environment variable (recommended)
+# Set LIMITLESS_API_KEY in your .env file or environment
+http_client = HttpClient()
 
-# Initialize HTTP client
-http_client = HttpClient(base_url="https://api.limitless.exchange")
+# Option 2: Explicit API key
+http_client = HttpClient(
+    api_key=os.getenv("LIMITLESS_API_KEY")
+)
 
-# Authenticate
-signer = MessageSigner(account)
-authenticator = Authenticator(http_client, signer)
-result = await authenticator.authenticate(LoginOptions(client="eoa"))
+# Option 3: Custom base URL (for dev/staging)
+http_client = HttpClient(
+    base_url="https://staging.api.limitless.exchange",
+    api_key="sk_test_..."
+)
 
-# Access session
-print(f"User ID: {result.profile.id}")
-print(f"Session: {result.session_cookie[:32]}...")
+# All requests automatically include X-API-Key header
+```
+
+### Environment Variables
+
+Create a `.env` file in your project root:
+
+```bash
+# Required for authenticated endpoints
+LIMITLESS_API_KEY=sk_live_your_api_key_here
+
+# Optional: Custom API URL (defaults to production)
+# LIMITLESS_API_URL=https://api.limitless.exchange
 ```
 
 ### Custom HTTP Headers
@@ -99,35 +100,16 @@ print(f"Session: {result.session_cookie[:32]}...")
 You can configure custom headers globally (applied to ALL requests) or per-request:
 
 ```python
-# Global headers (rate limiting bypass, custom auth, etc.)
+# Global headers (applied to all requests)
 http_client = HttpClient(
-    base_url="https://api.limitless.exchange",
     additional_headers={
-        "X-Rate-Limit-Bypass": "your-secret-token",
+        "X-Custom-Header": "value",
         "X-API-Version": "v1"
     }
 )
 
 # Per-request headers (request ID, tracing, etc.)
 response = await http_client.get("/endpoint", headers={"X-Request-ID": "123"})
-```
-
-### Auto-Retry on Session Expiration
-
-The `AuthenticatedClient` wrapper automatically re-authenticates when sessions expire:
-
-```python
-from limitless_sdk.auth import AuthenticatedClient
-
-auth_client = AuthenticatedClient(
-    http_client=http_client,
-    authenticator=authenticator
-)
-
-# Automatically handles 401/403 errors with re-authentication
-response = await auth_client.with_retry(
-    lambda: portfolio_fetcher.get_positions()
-)
 ```
 
 ## Market Data
@@ -139,10 +121,10 @@ from limitless_sdk.markets import MarketFetcher
 
 market_fetcher = MarketFetcher(http_client)
 
-# Get all markets (paginated)
-markets = await market_fetcher.get_markets(page=1, limit=50)
-print(f"Total: {markets['totalCount']}")
-print(f"Markets: {len(markets['data'])}")
+# Get active markets (paginated)
+markets = await market_fetcher.get_active_markets({"page": 1, "limit": 50})
+print(f"Total: {markets.total_markets_count}")
+print(f"Markets: {len(markets.data)}")
 
 # Get specific market (automatically caches venue data)
 market = await market_fetcher.get_market("market-slug")
@@ -243,18 +225,12 @@ The SDK supports two order types:
 
 ```python
 from limitless_sdk.orders import OrderClient
-from limitless_sdk.types import Side, OrderType, UserData
+from limitless_sdk.types import Side, OrderType
 
-# Setup order client
-user_data = UserData(
-    user_id=auth_result.profile.id,
-    fee_rate_bps=auth_result.profile.fee_rate_bps
-)
-
+# Setup order client (userData fetched automatically from profile)
 order_client = OrderClient(
     http_client=http_client,
     wallet=account,
-    user_data=user_data
 )
 
 # Get token ID from market
@@ -421,10 +397,9 @@ The SDK is organized into modular components:
 
 ### Core Components
 
-- **`HttpClient`**: Low-level HTTP client with retry logic and custom headers
-- **`MessageSigner`**: EIP-712 message signing for authentication
-- **`Authenticator`**: Handles EOA authentication flow
-- **`AuthenticatedClient`**: Auto-retry wrapper with session management
+- **`HttpClient`**: Low-level HTTP client with API key authentication and retry logic
+- **`OrderSigner`**: EIP-712 message signing for order creation
+- **`RetryableClient`**: Auto-retry wrapper with configurable retry strategies
 
 ### Domain Components
 
@@ -437,24 +412,24 @@ The SDK is organized into modular components:
 
 The SDK uses Pydantic models for type safety:
 
-- **`LoginOptions`**: Authentication configuration
-- **`UserData`**: User profile data
+- **`UserProfile`**: User account information
 - **`Side`**: `BUY` / `SELL` enum
 - **`OrderType`**: `GTC` / `FOK` enum
 - **`LogLevel`**: `DEBUG` / `INFO` / `WARN` / `ERROR` enum
+- **`Market`**: Market metadata and configuration
 
 ## Examples
 
 See the [`examples/`](./examples) directory for complete working examples:
 
-- **`01_authentication.py`** - EOA authentication with custom headers
+- **`01_authentication.py`** - API key authentication with portfolio data
 - **`02_create_buy_gtc_order.py`** - Create BUY GTC order
 - **`03_cancel_gtc_order.py`** - Cancel orders (single or all)
 - **`04_create_sell_gtc_order.py`** - Create SELL GTC order
 - **`05_create_buy_fok_order.py`** - Create BUY FOK order
 - **`06_create_sell_fok_order.py`** - Create SELL FOK order
 - **`06_retry_handling.py`** - Custom retry logic with `@retry_on_errors`
-- **`07_auto_retry_second_sample.py`** - Auto-retry with `AuthenticatedClient`
+- **`07_auto_retry_second_sample.py`** - Auto-retry with `RetryableClient`
 - **`08_websocket_events.py`** - Real-time orderbook updates
 
 ## Development
@@ -510,10 +485,11 @@ market = await market_fetcher.get_market("bitcoin-2024")
 #   adapter: "0x5a38afc17F7E97ad8d6C547ddb837E40B4aEDfC6"    # for NegRisk approvals
 # }
 
-# Create multiple orders without additional API calls
-order_client = OrderClient(http_client, wallet, user_data)
+# Create order client (userData fetched automatically from profile on first order)
+order_client = OrderClient(http_client, wallet)
 
 # Venue is fetched from cache (no API call)
+# User data is fetched automatically on first order creation
 order1 = await order_client.create_order(
     token_id=str(market.tokens.yes),
     price=0.50,
@@ -523,7 +499,7 @@ order1 = await order_client.create_order(
     market_slug=market.slug
 )
 
-# Still using cached venue data
+# Still using cached venue data and user data
 order2 = await order_client.create_order(
     token_id=str(market.tokens.no),
     price=0.30,
@@ -615,11 +591,11 @@ This is the first stable, production-ready release of the Limitless Exchange Pyt
 
 - **🔐 Authentication & Security**
 
-  - EIP-712 message signing with EOA (Externally Owned Account) support
-  - `MessageSigner` for cryptographic signing operations
-  - `Authenticator` for EOA authentication flow
-  - `AuthenticatedClient` wrapper with automatic session re-authentication
-  - Secure session management with automatic expiration handling
+  - API key authentication with X-API-Key header
+  - EIP-712 message signing for order creation
+  - `OrderSigner` for cryptographic order signing operations
+  - `AuthenticationError` for authentication failure handling
+  - Secure API key management from environment variables
 
 - **📊 Market Data Access**
 
@@ -646,7 +622,7 @@ This is the first stable, production-ready release of the Limitless Exchange Pyt
 
   - `PortfolioFetcher` for position tracking
   - CLOB position data retrieval
-  - Trading history access
+  - User history access
   - Accumulative points tracking
   - Portfolio-wide analytics
 
@@ -661,10 +637,10 @@ This is the first stable, production-ready release of the Limitless Exchange Pyt
 - **🔄 Retry & Error Handling**
 
   - `@retry_on_errors` decorator with customizable retry logic
+  - `RetryableClient` for automatic retry on transient failures
   - Configurable delays and maximum retry attempts
   - Status code-based retry strategies
-  - Automatic session re-authentication on 401/403 errors
-  - Comprehensive `APIError` exception handling
+  - Comprehensive `APIError` exception hierarchy (`AuthenticationError`, `RateLimitError`, `ValidationError`)
 
 - **📝 Logging & Debugging**
 
@@ -686,7 +662,7 @@ This is the first stable, production-ready release of the Limitless Exchange Pyt
 - **Venue Caching**: Automatic venue data caching eliminates redundant API calls
 - **Connection Pooling**: Efficient HTTP client with aiohttp connection pooling
 - **Async/Await**: Full async support for optimal performance
-- **Session Management**: Persistent HTTP sessions with cookie handling
+- **Session Reuse**: Persistent HTTP sessions for improved performance
 - **Custom Headers**: Global and per-request header configuration
 
 #### Documentation & Examples
@@ -695,14 +671,14 @@ This is the first stable, production-ready release of the Limitless Exchange Pyt
 - **9 Working Examples**:
 
   1. `00_setup_approvals.py` - Token approval setup
-  2. `01_authentication.py` - EOA authentication
+  2. `01_authentication.py` - API key authentication with portfolio data
   3. `02_create_buy_gtc_order.py` - GTC BUY orders
   4. `03_cancel_gtc_order.py` - Order cancellation
   5. `04_create_sell_gtc_order.py` - GTC SELL orders
   6. `05_create_buy_fok_order.py` - FOK BUY orders
   7. `06_create_sell_fok_order.py` - FOK SELL orders
   8. `06_retry_handling.py` - Custom retry logic
-  9. `07_auto_retry_second_sample.py` - Auto-retry patterns
+  9. `07_auto_retry_second_sample.py` - Auto-retry patterns with RetryableClient
   10. `08_websocket_events.py` - Real-time WebSocket events
 
 - **Documentation Quality Improvements**:
@@ -755,7 +731,7 @@ The following versions were development releases leading to v1.0.0:
 
 - Added `additional_headers` parameter to `HttpClient`
 - Global and per-request header configuration
-- `AuthenticatedClient` for auto-retry on session expiration
+- `RetryableClient` for automatic retry on transient failures
 - WebSocket support for real-time updates
 - Retry decorator (`@retry_on_errors`)
 - Comprehensive examples directory
@@ -764,7 +740,8 @@ The following versions were development releases leading to v1.0.0:
 #### v0.1.0 (Pre-release)
 
 - Initial release
-- EOA authentication with EIP-712 signing
+- API key authentication with X-API-Key header
+- EIP-712 signing for order creation
 - Market data access
 - GTC and FOK order support
 - Portfolio tracking

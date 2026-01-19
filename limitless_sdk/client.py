@@ -4,6 +4,7 @@ import asyncio
 import logging
 import math
 import time
+import os
 from functools import wraps
 from typing import Dict, List, Optional, Union, Any
 
@@ -98,7 +99,7 @@ def retry_on_rate_limit(max_retries: int = 2, delays: List[int] = None):
 class LimitlessClient:
     """Async client for Limitless Exchange API."""
     
-    def __init__(self, private_key: str, additional_headers: Optional[Dict[str, str]] = None):
+    def __init__(self, private_key: str,  api_key: Optional[str] = None, additional_headers: Optional[Dict[str, str]] = None):
         """Initialize the API client.
         
         Args:
@@ -111,6 +112,7 @@ class LimitlessClient:
         self.timeout = aiohttp.ClientTimeout(total=30)
         self.session = None
         self.signing_message = None
+        self.api_key = api_key or os.getenv("LIMITLESS_API_KEY") 
         self.additional_headers = additional_headers or {}
     
     async def __aenter__(self):
@@ -123,20 +125,23 @@ class LimitlessClient:
         await self.close_session()
     
     async def create_session(self):
-        """Create an aiohttp session with cookie jar."""
+        """Create an aiohttp session with API key authentication."""
         if self.session is None or self.session.closed:
             headers = {
                 "Content-Type": "application/json",
             }
+
+            # Add X-API-Key header if available
+            if self.api_key:
+                headers["X-API-Key"] = self.api_key
+
             # Merge additional headers if provided
             headers.update(self.additional_headers)
-            
-            # Create session with cookie jar to automatically handle cookies
-            cookie_jar = aiohttp.CookieJar()
+
+            # Create session
             self.session = aiohttp.ClientSession(
                 headers=headers,
                 timeout=self.timeout,
-                cookie_jar=cookie_jar
             )
     
     async def close_session(self):
@@ -149,101 +154,6 @@ class LimitlessClient:
         if self.session is None or self.session.closed:
             await self.create_session()
     
-    @retry_on_rate_limit(max_retries=2, delays=[5, 10])
-    async def get_signing_message(self) -> str:
-        """Get a signing message with a randomly generated nonce."""
-        await self.ensure_session()
-        
-        url = f"{self.base_url}/auth/signing-message"
-        async with self.session.get(url) as response:
-            if response.status == 200:
-                # Get the message as plain text, not JSON
-                self.signing_message = await response.text()
-                return self.signing_message
-            elif response.status == 429:
-                error_text = await response.text()
-                raise RateLimitError(f"Rate limit exceeded: {error_text}", response.status)
-            else:
-                error_text = await response.text()
-                raise LimitlessAPIError(f"Failed to get signing message: {response.status} - {error_text}", response.status)
-    
-    def sign_message(self, message: str) -> str:
-        """Sign a message using the private key."""
-        message_hash = encode_defunct(text=message)
-        signed_message = self.account.sign_message(message_hash)
-        return signed_message.signature.hex()
-    
-    async def login(self) -> bool:
-        """Login to the API using cookie-based authentication."""
-        await self.ensure_session()
-        
-        # Get signing message if not already obtained
-        if not self.signing_message:
-            await self.get_signing_message()
-        
-        # Sign the message
-        signature = self.sign_message(self.signing_message)
-        
-        # Login with the signature in headers
-        url = f"{self.base_url}/auth/login"
-        
-        # Payload only contains client type
-        payload = {
-            "client": "eoa"
-        }
-        
-        # Authentication data goes in headers
-        # Hex-encode the signing message to avoid header injection issues with newlines
-        hex_signing_message = "0x" + self.signing_message.encode('utf-8').hex()
-        
-        # Ensure signature has 0x prefix for BytesLike format
-        if not signature.startswith("0x"):
-            signature = "0x" + signature
-        
-        headers = {
-            "x-account": self.account.address,
-            "x-signature": signature,
-            "x-signing-message": hex_signing_message
-        }
-        # Merge additional headers if provided
-        headers.update(self.additional_headers)
-        
-        async with self.session.post(url, json=payload, headers=headers) as response:
-            response_text = await response.text()
-            
-            if response.status in [200, 201]:
-                # Cookie-based auth: server should set limitless-session cookie
-                # aiohttp will automatically store and send it in subsequent requests
-                logger.info("Login successful - cookie-based authentication established")
-                return True
-            elif response.status == 400:
-                # Bad request - likely payload structure issue
-                logger.error(f"Login failed with bad request: {response_text}")
-                logger.info("This might indicate the API expects a different payload structure")
-                raise AuthenticationError(f"Authentication payload rejected: {response_text}", response.status)
-            elif response.status == 429:
-                raise RateLimitError(f"Rate limit exceeded during login: {response_text}", response.status)
-            elif response.status == 401:
-                raise AuthenticationError(f"Authentication failed: {response_text}", response.status)
-            else:
-                raise LimitlessAPIError(f"Failed to login: {response.status} - {response_text}", response.status)
-    
-    async def ensure_authenticated(self):
-        """Ensure user is authenticated by checking for limitless-session cookie."""
-        # Check if we have the limitless-session cookie
-        if self.session and self.session.cookie_jar:
-            # Look for limitless-session cookie
-            has_session_cookie = False
-            for cookie in self.session.cookie_jar:
-                if cookie.key == "limitless-session":
-                    has_session_cookie = True
-                    break
-            
-            if not has_session_cookie:
-                await self.login()
-        else:
-            await self.login()
-
     def _generate_salt(self) -> int:
         """Generate a random salt for order."""
         import random
@@ -335,13 +245,9 @@ class LimitlessClient:
         NETWORK_CONFIG = {
             "testnet": {
                 "chain_id": 84532,  # Base Sepolia
-                "contract_addr": "0xf636e12bb161895453a0c4e312c47319a295913b",
-                "negrisk_addr": "0x9d3891970f5E23E911882be926c632a77AA2f7d0"  # Same for testnet
             },
             "mainnet": {
                 "chain_id": 8453,   # Base Mainnet  
-                "contract_addr": "0xa4409D988CA2218d956BeEFD3874100F444f0DC3",
-                "negrisk_addr": "0x5a38afc17F7E97ad8d6C547ddb837E40B4aEDfC6"  # NegRisk contract
             }
         }
         
@@ -737,11 +643,15 @@ class LimitlessClient:
         
         # For DELETE requests, we need to avoid sending Content-Type header
         # Create a new request without the default session headers
-        # but include additional headers (like rate limiting bypass)
+        # but include additional headers (like X-API-Key, rate limiting bypass)
         delete_headers = self.additional_headers.copy() if self.additional_headers else {}
+
+        # Add X-API-Key header for authentication
+        if self.api_key:
+            delete_headers["X-API-Key"] = self.api_key
+
         async with aiohttp.ClientSession(
             timeout=self.timeout,
-            cookie_jar=self.session.cookie_jar,  # Keep the cookies for auth
             headers=delete_headers
         ) as delete_session:
             async with delete_session.delete(url) as response:

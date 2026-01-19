@@ -1,7 +1,7 @@
 """Type definitions for Limitless Exchange SDK."""
 
 from .logger import ILogger, NoOpLogger, ConsoleLogger, LogLevel
-from .auth import LoginOptions, UserProfile, AuthResult, UserData
+from .user import UserProfile, UserData
 from .markets import (
     OrderbookEntry,
     OrderBook,
@@ -41,10 +41,8 @@ __all__ = [
     "NoOpLogger",
     "ConsoleLogger",
     "LogLevel",
-    # Auth types
-    "LoginOptions",
+    # User types
     "UserProfile",
-    "AuthResult",
     "UserData",
     # Market types
     "OrderbookEntry",

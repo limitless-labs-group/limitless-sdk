@@ -315,7 +315,46 @@ class Market(BaseModel):
     address: Optional[str] = None
     resolution_date: Optional[str] = Field(None, alias="resolutionDate")
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
+
+    # Private attribute to store http_client reference (not serialized)
+    _http_client: Optional[Any] = None
+
+    async def get_user_orders(self):
+        """Get user's orders for this market.
+
+        Fetches all orders placed by the authenticated user for this specific market.
+        Uses the http_client from the MarketFetcher that created this Market object.
+
+        Returns:
+            List of order dictionaries for this market
+
+        Raises:
+            AuthenticationError: If not authenticated (401)
+            APIError: If API request fails
+            RuntimeError: If market wasn't fetched via MarketFetcher
+
+        Example:
+            >>> from limitless_sdk.api import HttpClient
+            >>> from limitless_sdk.markets import MarketFetcher
+            >>>
+            >>> http_client = HttpClient(api_key="your-key")
+            >>> market_fetcher = MarketFetcher(http_client)
+            >>>
+            >>> # Clean fluent API
+            >>> market = await market_fetcher.get_market("bitcoin-2024")
+            >>> orders = await market.get_user_orders()
+            >>> print(f"You have {len(orders)} orders in {market.title}")
+        """
+        if self._http_client is None:
+            raise RuntimeError(
+                "This Market instance has no http_client attached. "
+                "Make sure to fetch the market via MarketFetcher.get_market() "
+                "to use this method."
+            )
+
+        response = await self._http_client.get(f"/markets/{self.slug}/user-orders")
+        return response if isinstance(response, list) else response.get("orders", [])
 
 
 class MarketsResponse(BaseModel):

@@ -21,8 +21,6 @@ class OrderType(Enum):
 class SignatureType(IntEnum):
     """Signature type enumeration."""
     EOA = 0
-    POLY_GNOSIS_SAFE = 1
-    POLY_PROXY = 2
 
 
 @dataclass
@@ -37,7 +35,7 @@ class Order:
     feeRateBps: int
     side: int  # 0 - BUY, 1 - SELL
     signature: str
-    signatureType: int  # 0, 1, 2, 3
+    signatureType: int  # 0 for EOA
     taker: Optional[str] = None
     expiration: Optional[str] = None
     nonce: Optional[int] = None

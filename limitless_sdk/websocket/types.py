@@ -4,6 +4,7 @@ This module provides type definitions for WebSocket connections, events,
 and subscriptions for real-time market data from Limitless Exchange.
 """
 
+import os
 from enum import Enum
 from typing import Any, Callable, Dict, List, Literal, Optional, TypedDict, Union
 from pydantic import BaseModel, Field
@@ -34,6 +35,8 @@ SubscriptionChannel = Literal[
     "fills",
     "markets",
     "prices",
+    "subscribe_market_prices",
+    "subscribe_positions",
     "subscribe_transactions"
 ]
 
@@ -43,7 +46,10 @@ class WebSocketConfig(BaseModel):
 
     Args:
         url: WebSocket URL (default: wss://ws.limitless.exchange)
-        session_cookie: Session cookie for authentication
+        api_key: API key for authenticated subscriptions (positions, transactions).
+                Not required for public subscriptions (market prices, orderbook).
+                You can generate an API key at https://limitless.exchange
+                and set LIMITLESS_API_KEY environment variable.
         auto_reconnect: Auto-reconnect on connection loss (default: True)
         reconnect_delay: Reconnection delay in seconds (default: 1.0)
         max_reconnect_attempts: Maximum reconnection attempts (default: None = infinite)
@@ -51,15 +57,22 @@ class WebSocketConfig(BaseModel):
         logger: Optional logger instance
 
     Example:
+        >>> # Public subscription (no API key needed)
         >>> config = WebSocketConfig(
         ...     url="wss://ws.limitless.exchange",
-        ...     session_cookie="your-session-cookie",
-        ...     auto_reconnect=True,
-        ...     reconnect_delay=1.0
+        ...     auto_reconnect=True
+        ... )
+        >>>
+        >>> # Authenticated subscription (API key required)
+        >>> import os
+        >>> config = WebSocketConfig(
+        ...     url="wss://ws.limitless.exchange",
+        ...     api_key=os.getenv('LIMITLESS_API_KEY'),
+        ...     auto_reconnect=True
         ... )
     """
     url: str = Field(default="wss://ws.limitless.exchange")
-    session_cookie: Optional[str] = Field(default=None)
+    api_key: Optional[str] = Field(default_factory=lambda: os.getenv('LIMITLESS_API_KEY'))
     auto_reconnect: bool = Field(default=True)
     reconnect_delay: float = Field(default=1.0)
     max_reconnect_attempts: Optional[int] = Field(default=None)
@@ -71,12 +84,16 @@ class SubscriptionOptions(TypedDict, total=False):
     """Subscription options for WebSocket channels.
 
     Attributes:
-        market_slug: Market slug to subscribe to (required for market-specific channels)
-        market_address: Market address to subscribe to (for AMM markets)
+        marketSlug: Market slug to subscribe to (deprecated - use marketSlugs)
+        marketSlugs: Market slugs to subscribe to (array format - required by server)
+        marketAddress: Market address to subscribe to (deprecated - use marketAddresses)
+        marketAddresses: Market addresses to subscribe to (array format - required by server)
         filters: Additional filters for subscription
     """
-    market_slug: Optional[str]
-    market_address: Optional[str]
+    marketSlug: Optional[str]  # Deprecated - use marketSlugs
+    marketSlugs: Optional[List[str]]
+    marketAddress: Optional[str]  # Deprecated - use marketAddresses
+    marketAddresses: Optional[List[str]]
     filters: Optional[Dict[str, Any]]
 
 
@@ -127,27 +144,27 @@ class TradeEvent(TypedDict):
     """Trade event.
 
     Attributes:
-        market_slug: Market slug identifier
+        marketSlug: Market slug identifier (camelCase to match API)
         side: Trade side (BUY or SELL)
         price: Trade price per share
         size: Trade size in shares
         timestamp: Unix timestamp in milliseconds
-        trade_id: Unique trade identifier
+        tradeId: Unique trade identifier (camelCase to match API)
     """
-    market_slug: str
+    marketSlug: str
     side: Literal["BUY", "SELL"]
     price: float
     size: float
     timestamp: int
-    trade_id: str
+    tradeId: str
 
 
 class OrderUpdate(TypedDict):
     """Order update event.
 
     Attributes:
-        order_id: Order identifier
-        market_slug: Market slug identifier
+        orderId: Order identifier (camelCase to match API)
+        marketSlug: Market slug identifier (camelCase to match API)
         side: Order side (BUY or SELL)
         price: Order price (optional for FOK orders)
         size: Order size in shares
@@ -155,8 +172,8 @@ class OrderUpdate(TypedDict):
         status: Order status
         timestamp: Unix timestamp in milliseconds
     """
-    order_id: str
-    market_slug: str
+    orderId: str
+    marketSlug: str
     side: Literal["BUY", "SELL"]
     price: Optional[float]
     size: float
@@ -169,37 +186,37 @@ class FillEvent(TypedDict):
     """Order fill event.
 
     Attributes:
-        order_id: Order identifier
-        market_slug: Market slug identifier
+        orderId: Order identifier (camelCase to match API)
+        marketSlug: Market slug identifier (camelCase to match API)
         side: Order side (BUY or SELL)
         price: Fill price per share
         size: Fill size in shares
         timestamp: Unix timestamp in milliseconds
-        fill_id: Unique fill identifier
+        fillId: Unique fill identifier (camelCase to match API)
     """
-    order_id: str
-    market_slug: str
+    orderId: str
+    marketSlug: str
     side: Literal["BUY", "SELL"]
     price: float
     size: float
     timestamp: int
-    fill_id: str
+    fillId: str
 
 
 class MarketUpdate(TypedDict):
     """Market update event.
 
     Attributes:
-        market_slug: Market slug identifier
-        last_price: Last trade price (optional)
-        volume_24h: 24h volume (optional)
-        price_change_24h: 24h price change percentage (optional)
+        marketSlug: Market slug identifier (camelCase to match API)
+        lastPrice: Last trade price (optional, camelCase to match API)
+        volume24h: 24h volume (optional, camelCase to match API)
+        priceChange24h: 24h price change percentage (optional, camelCase to match API)
         timestamp: Unix timestamp in milliseconds
     """
-    market_slug: str
-    last_price: Optional[float]
-    volume_24h: Optional[float]
-    price_change_24h: Optional[float]
+    marketSlug: str
+    lastPrice: Optional[float]
+    volume24h: Optional[float]
+    priceChange24h: Optional[float]
     timestamp: int
 
 
@@ -210,11 +227,11 @@ class PriceUpdate(TypedDict):
     Use NewPriceData for the correct AMM price update format.
 
     Attributes:
-        market_slug: Market slug identifier
+        marketSlug: Market slug identifier (camelCase to match API)
         price: Current price
         timestamp: Unix timestamp in milliseconds
     """
-    market_slug: str
+    marketSlug: str
     price: float
     timestamp: int
 
