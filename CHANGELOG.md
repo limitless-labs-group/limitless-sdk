@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 This is the first stable, production-ready release of the Limitless Exchange Python SDK, designated as a **Long-Term Support (LTS)** version. This release consolidates all features and improvements from pre-release versions (v0.x) into a stable, well-documented, and thoroughly tested SDK suitable for production use.
 
+In version 1.0.0 there was done important change to move from Cookie based auth to API-KEY due to /auth endpoint deprication in nearest future.
+
 **LTS Support Policy**: This version will receive security updates, critical bug fixes, API compatibility maintenance, and community support.
 
 ### Added
@@ -133,8 +135,6 @@ This is the first stable, production-ready release of the Limitless Exchange Pyt
 - All examples tested and working
 
 ---
-
-## Pre-Release Versions
 
 The following versions were development releases leading to v1.0.0:
 
