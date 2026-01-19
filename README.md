@@ -14,6 +14,20 @@ A minimalistic, async Python SDK for interacting with the Limitless Exchange API
 - ⚡ **Async/await support** - Modern async Python with aiohttp
 - 🚀 **Venue caching** - Automatic contract address caching for optimized order creation
 
+## ⚠️ Disclaimer
+
+**USE AT YOUR OWN RISK**
+
+This SDK is provided "as-is" without any warranties or guarantees. Trading on prediction markets involves financial risk. By using this SDK, you acknowledge that:
+
+- You are responsible for testing the SDK thoroughly before using it in production
+- The SDK authors are not liable for any financial losses or damages
+- You should review and understand the code before executing any trades
+- It is recommended to test all functionality on testnet or with small amounts first
+- The SDK may contain bugs or unexpected behavior despite best efforts
+
+**Feedback Welcome**: We encourage you to report any bugs, suggest improvements, or contribute to the project. Please submit issues or pull requests on our GitHub repository.
+
 ## Installation
 
 ```bash
@@ -464,7 +478,6 @@ MIT License - see LICENSE file for details.
 For questions or issues:
 
 - GitHub Issues: [Create an issue](https://github.com/your-org/limitless-sdk/issues)
-- Email: support@limitless.ai
 
 ## Key Features
 
