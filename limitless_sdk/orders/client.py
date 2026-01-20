@@ -421,29 +421,6 @@ class OrderClient:
 
         return response
 
-    async def get_order(self, order_id: str) -> OrderResponse:
-        """Get order details by ID.
-
-        Args:
-            order_id: Order ID to fetch
-
-        Returns:
-            OrderResponse with order details
-
-        Raises:
-            APIError: If order not found
-
-        Example:
-            >>> order = await client.get_order("order-id-123")
-            >>> print(f"Side: {order.order.side}")
-            >>> print(f"Price: {order.order.price}")
-        """
-        self._logger.debug("Fetching order", {"order_id": order_id})
-
-        response_data = await self._http_client.get(f"/orders/{order_id}")
-
-        return OrderResponse(**response_data)
-
     async def build_unsigned_order(
         self,
         token_id: str,
