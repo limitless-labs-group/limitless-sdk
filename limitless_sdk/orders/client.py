@@ -143,10 +143,13 @@ class OrderClient:
             Cached user data
         """
         if not self._cached_user_data:
-            self._logger.info("Fetching user profile for order client initialization...")
+            self._logger.info(
+                "Fetching user profile for order client initialization...",
+                {"wallet_address": self._wallet.address}
+            )
 
             portfolio_fetcher = PortfolioFetcher(self._http_client, self._logger)
-            profile = await portfolio_fetcher.get_profile()
+            profile = await portfolio_fetcher.get_profile(self._wallet.address)
 
             self._cached_user_data = UserData(
                 user_id=profile["id"],

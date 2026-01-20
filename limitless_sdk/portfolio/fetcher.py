@@ -39,10 +39,13 @@ class PortfolioFetcher:
         self._http_client = http_client
         self._logger = logger or NoOpLogger()
 
-    async def get_profile(self) -> dict:
-        """Get user profile for the authenticated user.
+    async def get_profile(self, address: str) -> dict:
+        """Get user profile for a specific wallet address.
 
         Returns user profile data including user ID and fee rate.
+
+        Args:
+            address: Wallet address to fetch profile for
 
         Returns:
             Raw API response dict with 'id', 'account', 'rank', etc.
@@ -52,20 +55,20 @@ class PortfolioFetcher:
             APIError: If API request fails
 
         Example:
-            >>> response = await fetcher.get_profile()
+            >>> response = await fetcher.get_profile('0x1234...')
             >>> print(f"User ID: {response['id']}")
             >>> print(f"Account: {response['account']}")
             >>> print(f"Fee Rate: {response['rank']['feeRateBps']}")
         """
-        self._logger.debug("Fetching user profile")
+        self._logger.debug("Fetching user profile", {"address": address})
 
         try:
-            response_data = await self._http_client.get("/profile")
-            self._logger.info("User profile fetched successfully")
+            response_data = await self._http_client.get(f"/profiles/{address}")
+            self._logger.info("User profile fetched successfully", {"address": address})
             return response_data  # Return raw API response 1:1
 
         except Exception as error:
-            self._logger.error("Failed to fetch user profile", error)
+            self._logger.error("Failed to fetch user profile", error, {"address": address})
             raise
 
     async def get_positions(self) -> dict:
