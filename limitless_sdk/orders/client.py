@@ -13,10 +13,11 @@ from ..types.orders import (
     OrderSigningConfig,
     UnsignedOrder,
 )
-from ..types.auth import UserData
+from ..types.user import UserData
 from ..types.logger import ILogger, NoOpLogger
 from ..utils.constants import ZERO_ADDRESS
 from ..markets.fetcher import MarketFetcher
+from ..portfolio.fetcher import PortfolioFetcher
 from .builder import OrderBuilder
 from .signer import OrderSigner
 
@@ -27,14 +28,16 @@ class OrderClient:
     This class provides methods for creating and managing orders,
     abstracting away HTTP details and order signing complexity.
 
+    User data (userId, feeRateBps) is automatically fetched from the profile API
+    on first order creation and cached for subsequent orders.
+
     Uses dynamic venue addressing for EIP-712 order signing. For best performance,
     provide a shared market_fetcher instance to enable venue caching across market
     fetches and order creation.
 
     Args:
-        http_client: HTTP client for API requests
+        http_client: HTTP client for API requests (must have API key configured)
         wallet: Ethereum account for signing
-        user_data: User data containing userId and feeRateBps
         signing_config: Custom signing configuration (optional)
         market_fetcher: Shared MarketFetcher instance for venue caching (optional)
         logger: Optional logger for debugging
@@ -44,21 +47,19 @@ class OrderClient:
         >>> from limitless_sdk.api import HttpClient
         >>> from limitless_sdk.orders import OrderClient
         >>> from limitless_sdk.markets import MarketFetcher
-        >>> from limitless_sdk.types import UserData, Side, OrderType
+        >>> from limitless_sdk.types import Side, OrderType
         >>>
         >>> # Setup
         >>> account = Account.from_key(private_key)
-        >>> http_client = HttpClient()
-        >>> user_data = UserData(user_id=123, fee_rate_bps=300)
+        >>> http_client = HttpClient(api_key="your-api-key")
         >>>
         >>> # Best practice: share MarketFetcher for venue caching
         >>> market_fetcher = MarketFetcher(http_client)
         >>>
-        >>> # Create order client
+        >>> # Create order client (user data fetched automatically)
         >>> order_client = OrderClient(
         ...     http_client=http_client,
         ...     wallet=account,
-        ...     user_data=user_data,
         ...     market_fetcher=market_fetcher
         ... )
         >>>
@@ -66,6 +67,7 @@ class OrderClient:
         >>> market = await market_fetcher.get_market("bitcoin-2024")
         >>>
         >>> # Uses cached venue, no extra API call
+        >>> # User data fetched automatically on first order
         >>> order = await order_client.create_order(
         ...     token_id="123456",
         ...     price=0.65,
@@ -80,7 +82,6 @@ class OrderClient:
         self,
         http_client: HttpClient,
         wallet: Account,
-        user_data: UserData,
         signing_config: Optional[OrderSigningConfig] = None,
         market_fetcher: Optional[MarketFetcher] = None,
         logger: Optional[ILogger] = None,
@@ -88,24 +89,19 @@ class OrderClient:
         """Initialize order client.
 
         Args:
-            http_client: HTTP client for API requests
+            http_client: HTTP client for API requests (must have API key configured)
             wallet: Ethereum account for signing
-            user_data: User data (userId, feeRateBps)
             signing_config: Custom signing config (optional)
             market_fetcher: Shared MarketFetcher for venue caching (optional)
             logger: Optional logger
         """
         self._http_client = http_client
         self._wallet = wallet
-        self._owner_id = user_data.user_id
         self._logger = logger or NoOpLogger()
 
-        # Initialize order builder
-        self._builder = OrderBuilder(
-            maker_address=wallet.address,
-            fee_rate_bps=user_data.fee_rate_bps,
-            price_tick=0.001,
-        )
+        # User data will be lazily loaded on first order creation
+        self._cached_user_data: Optional[UserData] = None
+        self._builder: Optional[OrderBuilder] = None
 
         # Initialize order signer
         self._signer = OrderSigner(wallet, logger)
@@ -137,6 +133,46 @@ class OrderClient:
                 "Auto-configured signing (contract address from venue)",
                 {"chain_id": chain_id},
             )
+
+    async def _ensure_user_data(self) -> UserData:
+        """Ensure user data is loaded and cached.
+
+        Fetches from profile API on first call, then caches for subsequent calls.
+
+        Returns:
+            Cached user data
+        """
+        if not self._cached_user_data:
+            self._logger.info(
+                "Fetching user profile for order client initialization...",
+                {"wallet_address": self._wallet.address}
+            )
+
+            portfolio_fetcher = PortfolioFetcher(self._http_client, self._logger)
+            profile = await portfolio_fetcher.get_profile(self._wallet.address)
+
+            self._cached_user_data = UserData(
+                user_id=profile["id"],
+                fee_rate_bps=profile.get("rank", {}).get("feeRateBps", 300)
+            )
+
+            # Initialize order builder with fetched data
+            self._builder = OrderBuilder(
+                maker_address=self._wallet.address,
+                fee_rate_bps=self._cached_user_data.fee_rate_bps,
+                price_tick=0.001,
+            )
+
+            self._logger.info(
+                "Order Client initialized",
+                {
+                    "wallet_address": profile["account"],
+                    "user_id": self._cached_user_data.user_id,
+                    "fee_rate": f"{self._cached_user_data.fee_rate_bps / 100}%",
+                }
+            )
+
+        return self._cached_user_data
 
     async def create_order(
         self,
@@ -210,6 +246,9 @@ class OrderClient:
             ...     maker_amount=18.64  # Sell 18.64 shares
             ... )
         """
+        # Ensure user data is loaded (lazy loading with cache)
+        user_data = await self._ensure_user_data()
+
         # Validate parameters based on order type
         is_fok = order_type == OrderType.FOK
 
@@ -307,7 +346,7 @@ class OrderClient:
 
         payload = CreateOrderDto(
             order=signed_order,
-            owner_id=self._owner_id,
+            owner_id=user_data.user_id,
             order_type=order_type.value,
             market_slug=market_slug,
         )
@@ -382,35 +421,13 @@ class OrderClient:
 
         return response
 
-    async def get_order(self, order_id: str) -> OrderResponse:
-        """Get order details by ID.
-
-        Args:
-            order_id: Order ID to fetch
-
-        Returns:
-            OrderResponse with order details
-
-        Raises:
-            APIError: If order not found
-
-        Example:
-            >>> order = await client.get_order("order-id-123")
-            >>> print(f"Side: {order.order.side}")
-            >>> print(f"Price: {order.order.price}")
-        """
-        self._logger.debug("Fetching order", {"order_id": order_id})
-
-        response_data = await self._http_client.get(f"/orders/{order_id}")
-
-        return OrderResponse(**response_data)
-
-    def build_unsigned_order(
+    async def build_unsigned_order(
         self,
         token_id: str,
-        price: float,
-        size: float,
         side: Side,
+        price: Optional[float] = None,
+        size: Optional[float] = None,
+        maker_amount: Optional[float] = None,
         expiration: Optional[int] = None,
         taker: Optional[str] = None,
     ) -> UnsignedOrder:
@@ -419,34 +436,70 @@ class OrderClient:
         Useful for advanced use cases where you need the unsigned order
         before signing and submission.
 
+        Supports both GTC and FOK order types:
+        - GTC orders: Provide price and size parameters
+        - FOK orders: Provide maker_amount parameter
+
         Args:
             token_id: Token ID for the outcome
-            price: Price per share (0-1 range)
-            size: Size in USDC
             side: Order side (BUY or SELL)
+            price: Price per share (0-1 range) - required for GTC orders
+            size: Size in USDC - required for GTC orders
+            maker_amount: Maker amount - for FOK orders (BUY: USDC to spend, SELL: shares to sell)
             expiration: Optional expiration timestamp
             taker: Optional taker address
 
         Returns:
             UnsignedOrder ready for signing
 
-        Example:
-            >>> unsigned = client.build_unsigned_order(
+        Raises:
+            ValueError: If parameters are invalid or missing for order type
+
+        Example GTC:
+            >>> unsigned = await client.build_unsigned_order(
             ...     token_id="123456",
+            ...     side=Side.BUY,
             ...     price=0.65,
-            ...     size=100.0,
-            ...     side=Side.BUY
+            ...     size=100.0
             ... )
             >>> print(f"Salt: {unsigned.salt}")
+
+        Example FOK:
+            >>> unsigned = await client.build_unsigned_order(
+            ...     token_id="123456",
+            ...     side=Side.BUY,
+            ...     maker_amount=50.0  # Spend $50 USDC
+            ... )
+            >>> print(f"Maker amount: {unsigned.maker_amount}")
         """
-        return self._builder.build_order(
-            token_id=token_id,
-            price=price,
-            size=size,
-            side=side,
-            expiration=expiration,
-            taker=taker,
-        )
+        # Ensure user data is loaded for order builder
+        await self._ensure_user_data()
+
+        # Determine order type based on provided parameters
+        is_fok = maker_amount is not None
+
+        if is_fok:
+            # Build FOK order
+            return self._builder.build_fok_order(
+                token_id=token_id,
+                side=side,
+                maker_amount=maker_amount,
+                expiration=expiration,
+                taker=taker,
+            )
+        else:
+            # Build GTC order
+            if price is None or size is None:
+                raise ValueError("GTC orders require 'price' and 'size' parameters")
+
+            return self._builder.build_order(
+                token_id=token_id,
+                price=price,
+                size=size,
+                side=side,
+                expiration=expiration,
+                taker=taker,
+            )
 
     async def sign_order(self, order: UnsignedOrder) -> str:
         """Sign an unsigned order without submitting.
@@ -476,10 +529,10 @@ class OrderClient:
         return self._wallet.address
 
     @property
-    def owner_id(self) -> int:
+    def owner_id(self) -> Optional[int]:
         """Get the owner ID.
 
         Returns:
-            Owner ID from user profile
+            Owner ID from user profile, or None if not yet loaded
         """
-        return self._owner_id
+        return self._cached_user_data.user_id if self._cached_user_data else None

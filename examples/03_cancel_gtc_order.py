@@ -4,13 +4,14 @@ Cancel GTC Order Example
 Demonstrates cancelling GTC orders - single order by ID or all orders for a market.
 
 Setup:
+    export LIMITLESS_API_KEY="your-api-key"
     export PRIVATE_KEY="0x..."
 
     Option 1 - Cancel single order:
-        Set order_id below (line 36)
+        Set order_id below (line 38)
 
     Option 2 - Cancel all orders:
-        Set market_slug below (line 37)
+        Set market_slug below (line 39)
         Note: Create multiple GTC orders first to see cancel_all in action
 """
 
@@ -19,18 +20,14 @@ import os
 from dotenv import load_dotenv
 from eth_account import Account
 from limitless_sdk.api import HttpClient
-from limitless_sdk.auth import MessageSigner, Authenticator
 from limitless_sdk.orders import OrderClient
-from limitless_sdk.types import (
-    LoginOptions,
-    UserData,
-)
 
 # Load environment variables
 load_dotenv()
 
 # Configuration
 API_URL = os.getenv("API_URL", "https://api.limitless.exchange")
+LIMITLESS_API_KEY = os.getenv("LIMITLESS_API_KEY")
 
 # Set order ID to cancel (copy from create_gtc_order output)
 order_id = "05d7a88b-4187-479e-9052-09b96f92c194"  # Replace with your order ID
@@ -40,6 +37,13 @@ market_slug = "your-market-slug-here"  # Replace with your market slug
 
 
 async def main():
+    # Validate API key
+    if not LIMITLESS_API_KEY:
+        raise ValueError(
+            "Set LIMITLESS_API_KEY in .env file\n"
+            "Get your API key from: https://limitless.exchange"
+        )
+
     # Setup
     private_key = os.getenv("PRIVATE_KEY")
     if not private_key:
@@ -48,24 +52,13 @@ async def main():
     account = Account.from_key(private_key)
     print(f"Wallet: {account.address}\n")
 
-    http_client = HttpClient(base_url=API_URL)
+    http_client = HttpClient(base_url=API_URL, api_key=LIMITLESS_API_KEY)
 
     try:
-        # Authenticate
-        signer = MessageSigner(account)
-        authenticator = Authenticator(http_client, signer)
-        auth_result = await authenticator.authenticate(LoginOptions(client="eoa"))
-
-        user_data = UserData(
-            user_id=auth_result.profile.id,
-            fee_rate_bps=auth_result.profile.fee_rate_bps
-        )
-
-        # Create order client
+        # Create order client (user data fetched automatically from profile)
         order_client = OrderClient(
             http_client=http_client,
             wallet=account,
-            user_data=user_data,
         )
 
         # Option 1: Cancel single order by ID

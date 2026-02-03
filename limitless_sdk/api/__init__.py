@@ -3,8 +3,8 @@
 from .http_client import HttpClient
 from .errors import (
     APIError,
-    AuthenticationError,
     RateLimitError,
+    AuthenticationError,
     ValidationError,
 )
 from .retry import (
@@ -16,8 +16,8 @@ from .retry import (
 __all__ = [
     "HttpClient",
     "APIError",
-    "AuthenticationError",
     "RateLimitError",
+    "AuthenticationError",
     "ValidationError",
     "retry_on_errors",
     "RetryConfig",

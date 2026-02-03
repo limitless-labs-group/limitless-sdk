@@ -6,14 +6,15 @@ Minimalistic examples demonstrating the Limitless SDK Python client.
 
 ```bash
 pip install limitless-sdk
-export PRIVATE_KEY="0x..."
-export MARKET_SLUG="your-market-slug"  # For order examples
+export LIMITLESS_API_KEY="sk_live_..."  # For authenticated endpoints
+export PRIVATE_KEY="0x..."              # For order signing (EIP-712)
+export MARKET_SLUG="your-market-slug"   # For order examples
 ```
 
 ## Examples
 
 ### [01_authentication.py](./01_authentication.py)
-EOA wallet authentication with session cookie.
+API key authentication with portfolio data access.
 
 ```bash
 python examples/01_authentication.py
@@ -38,7 +39,7 @@ Create SELL FOK order with `maker_amount`.
 Retry mechanism - 3 retries on 404 errors using `@retry_on_errors` decorator.
 
 ### [07_auto_retry_second_sample.py](./07_auto_retry_second_sample.py)
-AuthenticatedClient pattern for automatic re-authentication on session expiration.
+RetryableClient pattern for automatic retry on transient failures.
 
 ### [08_websocket_events.py](./08_websocket_events.py)
 Real-time orderbook updates via WebSocket subscription.

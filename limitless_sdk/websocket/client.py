@@ -42,6 +42,14 @@ class WebSocketClient:
     This client uses Socket.IO to connect to the WebSocket server and provides
     typed event subscriptions for orderbook, trades, orders, and market data.
 
+    Public Subscriptions (no authentication required):
+    - Market prices (AMM)
+    - Orderbook updates (CLOB)
+
+    Authenticated Subscriptions (require API key):
+    - User positions
+    - User transactions
+
     Performance features:
     - Async/await for concurrent operations
     - Connection pooling and automatic reconnection
@@ -50,23 +58,27 @@ class WebSocketClient:
     - Resource cleanup on disconnect
 
     Example:
-        >>> # Create client
+        >>> # Public subscription (no API key needed)
         >>> client = WebSocketClient(
         ...     WebSocketConfig(
-        ...         session_cookie='your-session-cookie',
         ...         auto_reconnect=True
         ...     )
         ... )
         >>>
-        >>> # Subscribe to orderbook updates (CLOB markets)
-        >>> @client.on('orderbookUpdate')
-        >>> async def on_orderbook(data: OrderbookUpdate):
-        ...     print(f"Orderbook update: {data['marketSlug']}")
-        ...     print(f"Best bid: {data['orderbook']['bids'][0]}")
-        >>>
-        >>> # Connect and subscribe
         >>> await client.connect()
         >>> await client.subscribe('subscribe_market_prices', {'marketSlugs': ['market-123']})
+        >>>
+        >>> # Authenticated subscription (API key required)
+        >>> import os
+        >>> client_auth = WebSocketClient(
+        ...     WebSocketConfig(
+        ...         api_key=os.getenv('LIMITLESS_API_KEY'),
+        ...         auto_reconnect=True
+        ...     )
+        ... )
+        >>>
+        >>> await client_auth.connect()
+        >>> await client_auth.subscribe('subscribe_positions', {'marketSlugs': ['market-123']})
     """
 
     def __init__(
@@ -116,23 +128,23 @@ class WebSocketClient:
         """
         return self._state == WebSocketState.CONNECTED and self._sio is not None
 
-    def set_session_cookie(self, session_cookie: str) -> None:
-        """Set the session cookie for authentication.
+    def set_api_key(self, api_key: str) -> None:
+        """Set the API key for authentication.
 
         If already connected, this will trigger a reconnection with the new
         authentication credentials.
 
         Args:
-            session_cookie: Session cookie value
+            api_key: API key value
 
         Example:
-            >>> client.set_session_cookie('new-session-cookie')
+            >>> client.set_api_key('new-api-key')
         """
-        self._config.session_cookie = session_cookie
+        self._config.api_key = api_key
 
         # If already connected, reconnect with new auth
         if self.is_connected():
-            self._logger.info("Session cookie updated, reconnecting...")
+            self._logger.info("API key updated, reconnecting...")
             asyncio.create_task(self._reconnect_with_new_auth())
 
     async def _reconnect_with_new_auth(self) -> None:
@@ -183,10 +195,12 @@ class WebSocketClient:
                 # Prepare connection URL (use base URL, namespace handled by Socket.IO)
                 ws_url = self._config.url
 
-                # Prepare headers with session cookie
+                # Prepare headers with API key
+                # API key is sent via X-API-Key header for authenticated subscriptions
                 headers = {}
-                if self._config.session_cookie:
-                    headers['cookie'] = f"limitless_session={self._config.session_cookie}"
+                if self._config.api_key:
+                    # Required for authenticated subscriptions (positions, transactions)
+                    headers['X-API-Key'] = self._config.api_key
 
                 # Connect with timeout to /markets namespace
                 await asyncio.wait_for(
@@ -283,21 +297,30 @@ class WebSocketClient:
 
         Raises:
             ConnectionError: If not connected
-            ValueError: If subscription fails
+            ValueError: If API key is required but not provided, or if subscription fails
             asyncio.TimeoutError: If subscription acknowledgment times out
 
         Example:
             >>> # Subscribe to market prices (CLOB orderbook + AMM prices)
             >>> await client.subscribe('subscribe_market_prices', {'marketSlugs': ['market-123']})
             >>>
-            >>> # Subscribe to positions
+            >>> # Subscribe to positions (requires API key)
             >>> await client.subscribe('subscribe_positions', {'marketSlugs': ['market-123']})
             >>>
-            >>> # Subscribe to transaction events
+            >>> # Subscribe to transaction events (requires API key)
             >>> await client.subscribe('subscribe_transactions')
         """
         if not self.is_connected():
             raise ConnectionError("WebSocket not connected. Call connect() first.")
+
+        # Check if API key is required for authenticated channels
+        authenticated_channels = ['subscribe_positions', 'subscribe_transactions']
+        if channel in authenticated_channels and not self._config.api_key:
+            raise ValueError(
+                f"API key is required for '{channel}' subscription. "
+                "Please provide an API key in the constructor or set LIMITLESS_API_KEY environment variable. "
+                "You can generate an API key at https://limitless.exchange"
+            )
 
         if options is None:
             options = {}
@@ -560,7 +583,7 @@ class WebSocketClient:
         Returns:
             Unique subscription key
         """
-        market_slug = options.get('market_slug', 'global')
+        market_slug = options.get('marketSlug', 'global')
         return f"{channel}:{market_slug}"
 
     def _get_channel_from_key(self, key: str) -> SubscriptionChannel:

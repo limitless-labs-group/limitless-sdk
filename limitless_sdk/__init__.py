@@ -12,26 +12,21 @@ Example:
     >>> markets = await market_fetcher.get_markets()
 """
 
-__version__ = "0.4.1"
+__version__ = "1.0.0"
 
 # API layer - HTTP client and error handling
 from .api import (
     HttpClient,
     APIError,
-    AuthenticationError,
     RateLimitError,
+    AuthenticationError,
     ValidationError,
     retry_on_errors,
     RetryConfig,
     RetryableClient,
 )
 
-# Authentication module
-from .auth import (
-    MessageSigner,
-    Authenticator,
-    AuthenticatedClient,
-)
+
 
 # Markets module
 from .markets import MarketFetcher
@@ -70,9 +65,7 @@ from .types import (
     ConsoleLogger,
     LogLevel,
     # Auth types
-    LoginOptions,
     UserProfile,
-    AuthResult,
     UserData,
     # Market types
     OrderbookEntry,
@@ -141,16 +134,12 @@ __all__ = [
     # API layer
     "HttpClient",
     "APIError",
-    "AuthenticationError",
     "RateLimitError",
+    "AuthenticationError",
     "ValidationError",
     "retry_on_errors",
     "RetryConfig",
     "RetryableClient",
-    # Auth module
-    "MessageSigner",
-    "Authenticator",
-    "AuthenticatedClient",
     # Markets module
     "MarketFetcher",
     # Portfolio module
@@ -178,9 +167,7 @@ __all__ = [
     "ConsoleLogger",
     "LogLevel",
     # Auth types
-    "LoginOptions",
     "UserProfile",
-    "AuthResult",
     "UserData",
     # Market types
     "OrderbookEntry",
@@ -221,16 +208,4 @@ __all__ = [
     "DEFAULT_CHAIN_ID",
     "ContractType",
     "get_contract_address",
-    # Legacy (backward compatibility)
-    "LimitlessClient",
-    "Order",
-    "LegacyCreateOrderDto",
-    "LegacyCancelOrderDto",
-    "LegacyDeleteOrderBatchDto",
-    "LegacyMarketSlugValidator",
-    "LegacyOrderType",
-    "OrderSide",
-    "LimitlessAPIError",
-    "LegacyRateLimitError",
-    "LegacyAuthenticationError",
 ]

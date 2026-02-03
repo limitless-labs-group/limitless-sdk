@@ -3,10 +3,10 @@
 import json
 from typing import Any, Dict, Optional
 from urllib.parse import urlencode
-
+import os
 import aiohttp
 
-from .errors import APIError, AuthenticationError, RateLimitError
+from .errors import APIError, RateLimitError, AuthenticationError
 from ..types.logger import ILogger, NoOpLogger
 
 
@@ -17,13 +17,13 @@ DEFAULT_TIMEOUT = 30
 class HttpClient:
     """HTTP client wrapper for Limitless Exchange API.
 
-    This class provides a centralized HTTP client with cookie management,
+    This class provides a centralized HTTP client with x-api-key management,
     error handling, and request/response interceptors.
 
     Args:
         base_url: Base URL for API requests (default: https://api.limitless.exchange)
         timeout: Request timeout in seconds (default: 30)
-        session_cookie: Session cookie for authenticated requests
+        x-api-key: api key for authenticated requests
         additional_headers: Additional headers to include in all requests
         logger: Optional logger for debugging (default: NoOpLogger)
 
@@ -34,18 +34,27 @@ class HttpClient:
 
     def __init__(
         self,
-        base_url: str = DEFAULT_API_URL,
+        base_url: Optional[str] = None,
+        api_key: Optional[str] = None,
         timeout: int = DEFAULT_TIMEOUT,
-        session_cookie: Optional[str] = None,
         additional_headers: Optional[Dict[str, str]] = None,
         logger: Optional[ILogger] = None,
     ):
         """Initialize HTTP client."""
-        self._base_url = base_url.rstrip("/")
+        self.base_url = (
+              base_url or
+              os.getenv("LIMITLESS_API_URL") or
+              DEFAULT_API_URL
+          ).rstrip("/") 
+        self._api_key = api_key or os.getenv("LIMITLESS_API_KEY")
         self._timeout = aiohttp.ClientTimeout(total=timeout)
-        self._session_cookie = session_cookie
         self._additional_headers = additional_headers or {}
         self._logger = logger or NoOpLogger()
+        if not self._api_key:
+              self._logger.warn(
+                  "API key not set. Authenticated endpoints will fail. "
+                  "Set LIMITLESS_API_KEY environment variable or pass api_key parameter."
+              )
         self._session: Optional[aiohttp.ClientSession] = None
 
     async def __aenter__(self):
@@ -67,9 +76,9 @@ class HttpClient:
                 "Accept": "application/json",
             }
 
-            cookie_jar = aiohttp.CookieJar()
+      
             self._session = aiohttp.ClientSession(
-                headers=headers, timeout=self._timeout, cookie_jar=cookie_jar
+                headers=headers, timeout=self._timeout
             )
 
     async def close(self) -> None:
@@ -77,36 +86,43 @@ class HttpClient:
         if self._session and not self._session.closed:
             await self._session.close()
 
-    def set_session_cookie(self, cookie: str) -> None:
-        """Set session cookie for authenticated requests.
+    def set_api_key(self, api_key: str) -> None:
+        """Set the API key for authenticated requests.
 
         Args:
-            cookie: Session cookie value
-        """
-        self._session_cookie = cookie
+            api_key: API key value
 
-    def clear_session_cookie(self) -> None:
-        """Clear the session cookie."""
-        self._session_cookie = None
+        Example:
+            >>> http_client.set_api_key("sk_live_...")
+        """
+        self._api_key = api_key
+        self._logger.debug("API key updated")
+
+    def clear_api_key(self) -> None:
+        """Clear the API key.
+
+        Example:
+            >>> http_client.clear_api_key()
+        """
+        self._api_key = None
+        self._logger.debug("API key cleared")
 
     def _prepare_headers(self, additional_headers: Optional[Dict[str, str]] = None) -> Dict[str, str]:
-        """Prepare request headers with session cookie.
+        """Prepare request headers.
 
         Args:
-            additional_headers: Additional headers for this request
+            additional_headers: Additional headers for this request, like X-API-KEY
 
         Returns:
             Complete headers dict including global additional_headers
         """
         headers = {}
-
+        if self._api_key:                    
+          headers["X-API-Key"] = self._api_key 
+          
         # Add global headers from constructor
         if self._additional_headers:
             headers.update(self._additional_headers)
-
-        # Add session cookie
-        if self._session_cookie:
-            headers["Cookie"] = f"limitless_session={self._session_cookie}"
 
         # Add per-request headers (can override global headers)
         if additional_headers:
@@ -153,7 +169,7 @@ class HttpClient:
         self._logger.debug(
             "Raw API Error Response",
             {
-                "host": self._base_url,
+                "host": self.base_url,
                 "status": status,
                 "url": url,
                 "method": method,
@@ -190,7 +206,7 @@ class HttpClient:
         """
         await self._ensure_session()
 
-        url = f"{self._base_url}{path}"
+        url = f"{self.base_url}{path}"
         if params:
             url = f"{url}?{urlencode(params)}"
 
@@ -200,11 +216,10 @@ class HttpClient:
         self._logger.debug(
             f"GET {path}",
             {
-                "host": self._base_url,
+                "host": self.base_url,
                 "full_url": url,
                 "params": params,
-                "headers": {k: v for k, v in request_headers.items() if k.lower() != 'cookie'},  # Hide cookie for security
-                "has_session_cookie": self._session_cookie is not None
+                "headers": {k: v for k, v in request_headers.items() if k.lower() != 'x-api-key'},  # Hide x-api-key for security
             }
         )
 
@@ -244,7 +259,7 @@ class HttpClient:
         """
         await self._ensure_session()
 
-        url = f"{self._base_url}{path}"
+        url = f"{self.base_url}{path}"
         request_headers = self._prepare_headers(headers)
         request_headers["Content-Type"] = "application/json"
 
@@ -254,11 +269,10 @@ class HttpClient:
         self._logger.debug(
             f"POST {path}",
             {
-                "host": self._base_url,
+                "host": self.base_url,
                 "full_url": url,
                 "has_data": data is not None,
-                "headers": {k: v for k, v in request_headers.items() if k.lower() != 'cookie'},  # excluding cookie for sec reasons
-                "has_session_cookie": self._session_cookie is not None
+                "headers": {k: v for k, v in request_headers.items() if k.lower() != 'x-api-key'},  # excluding x-api-key for sec reasons
             }
         )
 
@@ -294,7 +308,7 @@ class HttpClient:
     ) -> aiohttp.ClientResponse:
         """Perform POST request and return full response.
 
-        Useful when you need access to response headers (e.g., for cookie extraction).
+        Useful when you need access to response headers.
 
         Args:
             path: Request path
@@ -309,7 +323,7 @@ class HttpClient:
         """
         await self._ensure_session()
 
-        url = f"{self._base_url}{path}"
+        url = f"{self.base_url}{path}"
         request_headers = self._prepare_headers(headers)
         request_headers["Content-Type"] = "application/json"
 
@@ -349,7 +363,7 @@ class HttpClient:
         """
         await self._ensure_session()
 
-        url = f"{self._base_url}{path}"
+        url = f"{self.base_url}{path}"
         request_headers = self._prepare_headers(headers)
 
         self._logger.debug(f"DELETE {path}")
@@ -371,22 +385,3 @@ class HttpClient:
                 raise error
 
             return data
-
-    def extract_cookies(self, response: aiohttp.ClientResponse) -> Dict[str, str]:
-        """Extract cookies from response headers.
-
-        Args:
-            response: aiohttp response object
-
-        Returns:
-            Dictionary of cookie names to values
-        """
-        cookies: Dict[str, str] = {}
-        set_cookie = response.headers.getall("Set-Cookie", [])
-
-        for cookie_string in set_cookie:
-            parts = cookie_string.split(";")[0].split("=", 1)
-            if len(parts) == 2:
-                cookies[parts[0].strip()] = parts[1].strip()
-
-        return cookies

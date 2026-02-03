@@ -4,15 +4,33 @@ A minimalistic, async Python SDK for interacting with the Limitless Exchange API
 
 ## Features
 
-- 🔐 **Ethereum wallet authentication** - EIP-712 message signing with EOA support
+- 🔐 **API Key authentication** - Simple and secure authentication with API keys
 - 📈 **Market data access** - Markets, orderbooks, and historical data
 - 📋 **Order management** - GTC and FOK orders with automatic signing
-- 💼 **Portfolio tracking** - Positions and trading history
-- 🔄 **Automatic retries** - Configurable retry logic with session re-authentication
+- 💼 **Portfolio tracking** - Positions and user history
+- 🔄 **Automatic retries** - Configurable retry logic with error handling
 - 🌐 **WebSocket support** - Real-time orderbook updates
 - 🛡️ **Custom headers** - Global and per-request header configuration
 - ⚡ **Async/await support** - Modern async Python with aiohttp
 - 🚀 **Venue caching** - Automatic contract address caching for optimized order creation
+
+## ⚠️ Disclaimer
+
+**USE AT YOUR OWN RISK**
+
+This SDK is provided "as-is" without any warranties or guarantees. Trading on prediction markets involves financial risk. By using this SDK, you acknowledge that:
+
+- You are responsible for testing the SDK thoroughly before using it in production
+- The SDK authors are not liable for any financial losses or damages
+- You should review and understand the code before executing any trades
+- It is recommended to test all functionality on testnet or with small amounts first
+- The SDK may contain bugs or unexpected behavior despite best efforts
+
+**Feedback Welcome**: We encourage you to report any bugs, suggest improvements, or contribute to the project. Please submit issues or pull requests on our GitHub repository.
+
+## 🌍 Geographic Restrictions
+
+**Important**: Limitless restricts order placement from US locations due to regulatory requirements and compliance with international sanctions. Before placing orders, builders should verify their location complies with applicable regulations.
 
 ## Installation
 
@@ -25,36 +43,25 @@ pip install limitless-sdk
 ```python
 import asyncio
 import os
-from eth_account import Account
 from limitless_sdk.api import HttpClient
-from limitless_sdk.auth import MessageSigner, Authenticator
 from limitless_sdk.markets import MarketFetcher
 from limitless_sdk.portfolio import PortfolioFetcher
-from limitless_sdk.types import LoginOptions
 
 async def main():
-    # Setup
-    account = Account.from_key(os.getenv("PRIVATE_KEY"))
+    # Setup - API key automatically loaded from LIMITLESS_API_KEY env variable
     http_client = HttpClient(base_url="https://api.limitless.exchange")
 
     try:
-        # Authenticate
-        signer = MessageSigner(account)
-        authenticator = Authenticator(http_client, signer)
-        result = await authenticator.authenticate(LoginOptions(client="eoa"))
-
-        print(f"Authenticated: {result.profile.account}")
-
         # Get markets
         market_fetcher = MarketFetcher(http_client)
-        markets = await market_fetcher.get_markets()
-        print(f"Found {markets['totalCount']} markets")
+        markets = await market_fetcher.get_active_markets()
+        print(f"Found {markets.total_markets_count} markets")
 
         # Fetch specific market (caches venue data for orders)
         market = await market_fetcher.get_market("bitcoin-2024")
         print(f"Market: {market.title}")
 
-        # Get positions
+        # Get positions (requires authentication)
         portfolio_fetcher = PortfolioFetcher(http_client)
         positions = await portfolio_fetcher.get_positions()
         print(f"CLOB positions: {len(positions['clob'])}")
@@ -68,30 +75,42 @@ if __name__ == "__main__":
 
 ## Authentication
 
-The SDK uses EIP-712 message signing for authentication with EOA (Externally Owned Account) wallets.
+The SDK uses API keys for authentication. API keys can be obtained from your Limitless Exchange account settings.
 
 ### Basic Authentication
 
 ```python
-from eth_account import Account
+import os
 from limitless_sdk.api import HttpClient
-from limitless_sdk.auth import MessageSigner, Authenticator
-from limitless_sdk.types import LoginOptions
 
-# Create account from private key
-account = Account.from_key("0x...")
+# Option 1: Automatic from environment variable (recommended)
+# Set LIMITLESS_API_KEY in your .env file or environment
+http_client = HttpClient()
 
-# Initialize HTTP client
-http_client = HttpClient(base_url="https://api.limitless.exchange")
+# Option 2: Explicit API key
+http_client = HttpClient(
+    api_key=os.getenv("LIMITLESS_API_KEY")
+)
 
-# Authenticate
-signer = MessageSigner(account)
-authenticator = Authenticator(http_client, signer)
-result = await authenticator.authenticate(LoginOptions(client="eoa"))
+# Option 3: Custom base URL (for dev/staging)
+http_client = HttpClient(
+    base_url="https://staging.api.limitless.exchange",
+    api_key="sk_test_..."
+)
 
-# Access session
-print(f"User ID: {result.profile.id}")
-print(f"Session: {result.session_cookie[:32]}...")
+# All requests automatically include X-API-Key header
+```
+
+### Environment Variables
+
+Create a `.env` file in your project root:
+
+```bash
+# Required for authenticated endpoints
+LIMITLESS_API_KEY=sk_live_your_api_key_here
+
+# Optional: Custom API URL (defaults to production)
+# LIMITLESS_API_URL=https://api.limitless.exchange
 ```
 
 ### Custom HTTP Headers
@@ -99,35 +118,16 @@ print(f"Session: {result.session_cookie[:32]}...")
 You can configure custom headers globally (applied to ALL requests) or per-request:
 
 ```python
-# Global headers (rate limiting bypass, custom auth, etc.)
+# Global headers (applied to all requests)
 http_client = HttpClient(
-    base_url="https://api.limitless.exchange",
     additional_headers={
-        "X-Rate-Limit-Bypass": "your-secret-token",
+        "X-Custom-Header": "value",
         "X-API-Version": "v1"
     }
 )
 
 # Per-request headers (request ID, tracing, etc.)
 response = await http_client.get("/endpoint", headers={"X-Request-ID": "123"})
-```
-
-### Auto-Retry on Session Expiration
-
-The `AuthenticatedClient` wrapper automatically re-authenticates when sessions expire:
-
-```python
-from limitless_sdk.auth import AuthenticatedClient
-
-auth_client = AuthenticatedClient(
-    http_client=http_client,
-    authenticator=authenticator
-)
-
-# Automatically handles 401/403 errors with re-authentication
-response = await auth_client.with_retry(
-    lambda: portfolio_fetcher.get_positions()
-)
 ```
 
 ## Market Data
@@ -139,10 +139,10 @@ from limitless_sdk.markets import MarketFetcher
 
 market_fetcher = MarketFetcher(http_client)
 
-# Get all markets (paginated)
-markets = await market_fetcher.get_markets(page=1, limit=50)
-print(f"Total: {markets['totalCount']}")
-print(f"Markets: {len(markets['data'])}")
+# Get active markets (paginated)
+markets = await market_fetcher.get_active_markets({"page": 1, "limit": 50})
+print(f"Total: {markets.total_markets_count}")
+print(f"Markets: {len(markets.data)}")
 
 # Get specific market (automatically caches venue data)
 market = await market_fetcher.get_market("market-slug")
@@ -171,10 +171,12 @@ for order in orderbook.get('orders', []):
 ### Required Approvals
 
 **CLOB Markets:**
+
 - **BUY orders**: Approve USDC → `market.venue.exchange`
 - **SELL orders**: Approve Conditional Tokens → `market.venue.exchange`
 
 **NegRisk Markets:**
+
 - **BUY orders**: Approve USDC → `market.venue.exchange`
 - **SELL orders**: Approve Conditional Tokens → **both** `market.venue.exchange` AND `market.venue.adapter`
 
@@ -241,18 +243,12 @@ The SDK supports two order types:
 
 ```python
 from limitless_sdk.orders import OrderClient
-from limitless_sdk.types import Side, OrderType, UserData
+from limitless_sdk.types import Side, OrderType
 
-# Setup order client
-user_data = UserData(
-    user_id=auth_result.profile.id,
-    fee_rate_bps=auth_result.profile.fee_rate_bps
-)
-
+# Setup order client (userData fetched automatically from profile)
 order_client = OrderClient(
     http_client=http_client,
     wallet=account,
-    user_data=user_data
 )
 
 # Get token ID from market
@@ -274,12 +270,28 @@ print(f"Status: {order.order.status}")
 
 ### Create FOK Orders
 
+FOK (Fill-Or-Kill) orders either execute immediately and completely or are cancelled. They use `maker_amount` instead of `price`/`size` parameters.
+
+**Parameter Semantics**:
+
+- **BUY orders**: `maker_amount` = total USDC to spend (e.g., 10.0 = $10 USDC)
+- **SELL orders**: `maker_amount` = number of shares to sell (e.g., 18.64 shares)
+
 ```python
-# FOK orders use maker_amount instead of price/size
+# FOK BUY order - spend $10 USDC
 order = await order_client.create_order(
     token_id=token_id,
-    maker_amount=10.0,   # Total USDC to spend
+    maker_amount=10.0,   # Spend $10 USDC
     side=Side.BUY,
+    order_type=OrderType.FOK,
+    market_slug=market.slug
+)
+
+# FOK SELL order - sell 18.64 shares
+order = await order_client.create_order(
+    token_id=token_id,
+    maker_amount=18.64,  # Sell 18.64 shares
+    side=Side.SELL,
     order_type=OrderType.FOK,
     market_slug=market.slug
 )
@@ -403,10 +415,9 @@ The SDK is organized into modular components:
 
 ### Core Components
 
-- **`HttpClient`**: Low-level HTTP client with retry logic and custom headers
-- **`MessageSigner`**: EIP-712 message signing for authentication
-- **`Authenticator`**: Handles EOA authentication flow
-- **`AuthenticatedClient`**: Auto-retry wrapper with session management
+- **`HttpClient`**: Low-level HTTP client with API key authentication and retry logic
+- **`OrderSigner`**: EIP-712 message signing for order creation
+- **`RetryableClient`**: Auto-retry wrapper with configurable retry strategies
 
 ### Domain Components
 
@@ -419,24 +430,24 @@ The SDK is organized into modular components:
 
 The SDK uses Pydantic models for type safety:
 
-- **`LoginOptions`**: Authentication configuration
-- **`UserData`**: User profile data
+- **`UserProfile`**: User account information
 - **`Side`**: `BUY` / `SELL` enum
 - **`OrderType`**: `GTC` / `FOK` enum
 - **`LogLevel`**: `DEBUG` / `INFO` / `WARN` / `ERROR` enum
+- **`Market`**: Market metadata and configuration
 
 ## Examples
 
 See the [`examples/`](./examples) directory for complete working examples:
 
-- **`01_authentication.py`** - EOA authentication with custom headers
+- **`01_authentication.py`** - API key authentication with portfolio data
 - **`02_create_buy_gtc_order.py`** - Create BUY GTC order
 - **`03_cancel_gtc_order.py`** - Cancel orders (single or all)
 - **`04_create_sell_gtc_order.py`** - Create SELL GTC order
 - **`05_create_buy_fok_order.py`** - Create BUY FOK order
 - **`06_create_sell_fok_order.py`** - Create SELL FOK order
 - **`06_retry_handling.py`** - Custom retry logic with `@retry_on_errors`
-- **`07_auto_retry_second_sample.py`** - Auto-retry with `AuthenticatedClient`
+- **`07_auto_retry_second_sample.py`** - Auto-retry with `RetryableClient`
 - **`08_websocket_events.py`** - Real-time orderbook updates
 
 ## Development
@@ -471,7 +482,6 @@ MIT License - see LICENSE file for details.
 For questions or issues:
 
 - GitHub Issues: [Create an issue](https://github.com/your-org/limitless-sdk/issues)
-- Email: support@limitless.ai
 
 ## Key Features
 
@@ -492,10 +502,11 @@ market = await market_fetcher.get_market("bitcoin-2024")
 #   adapter: "0x5a38afc17F7E97ad8d6C547ddb837E40B4aEDfC6"    # for NegRisk approvals
 # }
 
-# Create multiple orders without additional API calls
-order_client = OrderClient(http_client, wallet, user_data)
+# Create order client (userData fetched automatically from profile on first order)
+order_client = OrderClient(http_client, wallet)
 
 # Venue is fetched from cache (no API call)
+# User data is fetched automatically on first order creation
 order1 = await order_client.create_order(
     token_id=str(market.tokens.yes),
     price=0.50,
@@ -505,7 +516,7 @@ order1 = await order_client.create_order(
     market_slug=market.slug
 )
 
-# Still using cached venue data
+# Still using cached venue data and user data
 order2 = await order_client.create_order(
     token_id=str(market.tokens.no),
     price=0.30,
@@ -517,6 +528,7 @@ order2 = await order_client.create_order(
 ```
 
 **Performance benefits**:
+
 - Eliminates redundant `/venues/:slug` API calls
 - Faster order creation (cache hit vs network request)
 - Reduced API rate limit usage
@@ -567,80 +579,199 @@ points = positions['accumulativePoints']
 
 ### Order Type Parameters
 
-- **GTC orders**: `price` + `size`
+- **GTC orders**: Use `price` + `size` parameters
 
   ```python
-  price=0.50,  # Minimum acceptable price
-  size=5.0     # Number of shares
+  price=0.50,  # Minimum acceptable price (0-1 range)
+  size=5.0     # Number of shares to buy/sell
   ```
 
-- **FOK orders**: `maker_amount`
+- **FOK orders**: Use `maker_amount` parameter (semantics differ by side)
+
   ```python
-  maker_amount=10.0  # Total USDC to spend/receive
+  # BUY: Total USDC to spend
+  maker_amount=10.0  # Spend $10 USDC to buy shares
+
+  # SELL: Number of shares to sell
+  maker_amount=18.64 # Sell 18.64 shares for USDC
   ```
 
 ## Changelog
 
-### v3.0.1
+### v1.0.0
 
-- **Venue Caching System**: Automatic venue data caching for improved performance
-  - `MarketFetcher` now caches venue data (exchange, adapter addresses) per market
-  - Eliminates redundant API calls when creating multiple orders for the same market
-  - Venue cache automatically populated via `get_market()` calls
-  - Performance optimization: fetch market once, reuse venue data for all orders
-- **Enhanced Debug Logging**: Improved observability for venue operations
-  - `get_market()`: Logs venue cache status with exchange/adapter addresses and cache size
-  - `get_venue()`: Logs cache hits/misses for performance monitoring
-  - Warning logs when market doesn't have venue data
-  - Debug mode shows complete venue lifecycle (fetch → cache → reuse)
-- **Documentation**: Comprehensive venue system documentation
-  - New venue system section in trading guide explaining exchange/adapter roles
-  - Best practices guide for venue caching patterns
-  - Token approval requirements per market type (CLOB vs NegRisk)
-  - Complete examples showing optimal marketFetcher sharing patterns
+**Release Date**: January 2026
 
-### v0.3.0
+This is the first stable, production-ready release of the Limitless Exchange Python SDK, designated as a Long-Term Support (LTS) version. This release consolidates all features and improvements from pre-release versions into a stable, well-documented, and thoroughly tested SDK.
 
-- **Architecture**: Refactored to modular component structure
-  - `HttpClient` with connection pooling via aiohttp
-  - `OrderClient` for order management with automatic signing
-  - `MarketFetcher` for market data operations
-  - `PortfolioFetcher` for portfolio/positions queries
-- **WebSocket Support**: Real-time orderbook updates via `WebSocketClient`
+#### Core Features
+
+- **🔐 Authentication & Security**
+
+  - API key authentication with X-API-Key header
+  - EIP-712 message signing for order creation
+  - `OrderSigner` for cryptographic order signing operations
+  - `AuthenticationError` for authentication failure handling
+  - Secure API key management from environment variables
+
+- **📊 Market Data Access**
+
+  - `MarketFetcher` with intelligent venue caching system
+  - Active markets retrieval with pagination and sorting
+  - Market-specific data fetching (slug-based)
+  - Real-time orderbook data
+  - Automatic venue data caching for performance optimization
+  - Cache-aware market operations (eliminates redundant API calls)
+
+- **📋 Order Management**
+
+  - `OrderClient` for comprehensive order operations
+  - **GTC Orders** (Good-Till-Cancelled): `price` + `size` parameters
+  - **FOK Orders** (Fill-Or-Kill): `maker_amount` parameter
+    - BUY: maker_amount = total USDC to spend
+    - SELL: maker_amount = number of shares to sell
+  - Automatic EIP-712 order signing with venue.exchange integration
+  - Dynamic venue resolution from cache or API
+  - Order cancellation (single order and batch operations)
+  - Maker match tracking and order status monitoring
+
+- **💼 Portfolio Management**
+
+  - `PortfolioFetcher` for position tracking
+  - CLOB position data retrieval
+  - User history access
+  - Accumulative points tracking
+  - Portfolio-wide analytics
+
+- **🌐 WebSocket Support**
+
+  - `WebSocketClient` for real-time orderbook updates
   - Event-based subscription system with decorators
   - Auto-reconnect functionality with configurable delays
   - Typed event handlers for orderbook updates
-- **Authentication**: Enhanced authentication system
-  - `MessageSigner` for EIP-712 message signing
-  - `Authenticator` for EOA authentication flow
-  - `AuthenticatedClient` wrapper for automatic session re-authentication
-- **HTTP Client**: Structured HTTP client with advanced features
-  - Connection pooling and session management
-  - Global and per-request custom headers
-  - Configurable logging with `ConsoleLogger` and log levels
-  - Retry decorator (`@retry_on_errors`) with customizable delays
-- **Order System**: Improved order handling
-  - Support for GTC (Good-Till-Cancelled) orders with `price` + `size`
-  - Support for FOK (Fill-Or-Kill) orders with `maker_amount`
-  - Automatic order signing and submission
-  - Order cancellation (single and batch)
-- **Documentation**: Comprehensive examples directory with 9 working examples
-- **README**: Updated to reflect actual implementation patterns
+  - Connection lifecycle management
 
-### v0.2.0
+- **🔄 Retry & Error Handling**
+
+  - `@retry_on_errors` decorator with customizable retry logic
+  - `RetryableClient` for automatic retry on transient failures
+  - Configurable delays and maximum retry attempts
+  - Status code-based retry strategies
+  - Comprehensive `APIError` exception hierarchy (`AuthenticationError`, `RateLimitError`, `ValidationError`)
+
+- **📝 Logging & Debugging**
+
+  - `ConsoleLogger` with configurable log levels (DEBUG, INFO, WARN, ERROR)
+  - Enhanced debug logging for venue operations
+  - Venue cache monitoring (hits/misses)
+  - Request/response logging with header visibility
+  - Performance tracking and observability
+
+- **🛡️ Token Approval System**
+  - Complete token approval setup guide
+  - CLOB market approval workflows
+  - NegRisk market dual-approval requirements
+  - Web3 integration examples
+  - ERC-20 (USDC) and ERC-1155 (Conditional Tokens) support
+
+#### Performance & Optimization
+
+- **Venue Caching**: Automatic venue data caching eliminates redundant API calls
+- **Connection Pooling**: Efficient HTTP client with aiohttp connection pooling
+- **Async/Await**: Full async support for optimal performance
+- **Session Reuse**: Persistent HTTP sessions for improved performance
+- **Custom Headers**: Global and per-request header configuration
+
+#### Documentation & Examples
+
+- **Comprehensive README**: 650+ lines covering all features
+- **9 Working Examples**:
+
+  1. `00_setup_approvals.py` - Token approval setup
+  2. `01_authentication.py` - API key authentication with portfolio data
+  3. `02_create_buy_gtc_order.py` - GTC BUY orders
+  4. `03_cancel_gtc_order.py` - Order cancellation
+  5. `04_create_sell_gtc_order.py` - GTC SELL orders
+  6. `05_create_buy_fok_order.py` - FOK BUY orders
+  7. `06_create_sell_fok_order.py` - FOK SELL orders
+  8. `06_retry_handling.py` - Custom retry logic
+  9. `07_auto_retry_second_sample.py` - Auto-retry patterns with RetryableClient
+  10. `08_websocket_events.py` - Real-time WebSocket events
+
+- **Documentation Quality Improvements**:
+  - Accurate FOK order parameter documentation (BUY vs SELL semantics)
+  - Clear GTC order price parameter explanations
+  - Comprehensive venue system documentation
+  - Token approval requirements by market type
+  - Best practices for venue caching and performance
+
+#### Architecture
+
+- **Modular Design**: Clean separation of concerns with focused components
+- **Type Safety**: Full Pydantic model integration for type validation
+- **Extensibility**: Easy to extend with custom authentication or signing logic
+- **Standards Compliance**: Follows Python async best practices
+
+#### Quality Assurance
+
+- Production-ready code quality
+- Comprehensive error handling
+- Well-documented public APIs
+- Consistent coding patterns
+- Validated against live Base mainnet
+
+#### Breaking Changes from Pre-Release
+
+None - this is the first stable release. All pre-release versions (v0.x) were development versions leading to this LTS release.
+
+---
+
+### Pre-Release Versions
+
+The following versions were development releases leading to v1.0.0:
+
+#### v0.3.1 (Pre-release)
+
+- Venue caching system implementation
+- Enhanced debug logging
+- Venue system documentation
+
+#### v0.3.0 (Pre-release)
+
+- Modular architecture refactor
+- WebSocket support
+- Enhanced authentication system
+- HTTP client improvements
+- Order system enhancements
+
+#### v0.2.0 (Pre-release)
 
 - Added `additional_headers` parameter to `HttpClient`
 - Global and per-request header configuration
-- `AuthenticatedClient` for auto-retry on session expiration
+- `RetryableClient` for automatic retry on transient failures
 - WebSocket support for real-time updates
 - Retry decorator (`@retry_on_errors`)
 - Comprehensive examples directory
 - Fixed license configuration in pyproject.toml
 
-### v0.1.0
+#### v0.1.0 (Pre-release)
 
 - Initial release
-- EOA authentication with EIP-712 signing
+- API key authentication with X-API-Key header
+- EIP-712 signing for order creation
 - Market data access
 - GTC and FOK order support
 - Portfolio tracking
+
+---
+
+## LTS Support Policy
+
+**v1.0.0 LTS** will receive:
+
+- Security updates and critical bug fixes
+- Compatibility maintenance with Limitless Exchange API
+- Community support and issue resolution
+- Documentation updates and improvements
+
+For production deployments, we recommend using the LTS version for stability and long-term support.

@@ -87,6 +87,7 @@ class RateLimitError(APIError):
         super().__init__(message, status_code, response_data, url, method)
 
 
+
 class AuthenticationError(APIError):
     """Exception for authentication errors (401, 403)."""
 
