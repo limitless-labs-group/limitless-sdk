@@ -231,9 +231,9 @@ class MakerMatch(BaseModel):
     """
 
     id: str
-    created_at: str = Field(alias="createdAt")
-    matched_size: str = Field(alias="matchedSize")
-    order_id: str = Field(alias="orderId")
+    created_at: Optional[str] = Field(None, alias="createdAt")
+    matched_size: Optional[str] = Field(None, alias="matchedSize")
+    order_id: Optional[str] = Field(None, alias="orderId")
 
     model_config = ConfigDict(populate_by_name=True)
 

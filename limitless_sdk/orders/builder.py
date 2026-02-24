@@ -93,8 +93,11 @@ class OrderBuilder:
         if size <= 0:
             raise ValueError(f"Size must be positive, got {size}")
 
-        # Round price to tick
-        price = round(price / self._price_tick) * self._price_tick
+        # Round price to tick, then round to tick's decimal precision
+        # to eliminate IEEE 754 drift (e.g., 950 * 0.001 = 0.9500000000000001)
+        tick_str = str(self._price_tick)
+        tick_decimals = len(tick_str.split('.')[-1]) if '.' in tick_str else 0
+        price = round(round(price / self._price_tick) * self._price_tick, tick_decimals)
 
         # Generate order parameters
         salt = self._generate_salt()
@@ -253,11 +256,12 @@ class OrderBuilder:
         collateral_scale = 1_000_000
         price_scale = 1_000_000
 
-        # Direct integer arithmetic (10x faster than Decimal)
-        # Scale inputs to integers immediately to avoid Decimal overhead
-        shares = int(size * shares_scale)
-        price_int = int(price * price_scale)
-        tick_int = int(self._price_tick * price_scale)
+        # Scale inputs to integers using round() to avoid IEEE 754 truncation.
+        # int() truncates: int(0.95 * 1_000_000) = 949999
+        # round() rounds:  round(0.95 * 1_000_000) = 950000
+        shares = round(size * shares_scale)
+        price_int = round(price * price_scale)
+        tick_int = round(self._price_tick * price_scale)
 
         # Validate price is tick-aligned
         if price_int % tick_int != 0:

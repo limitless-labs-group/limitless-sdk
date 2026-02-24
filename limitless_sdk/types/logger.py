@@ -80,6 +80,8 @@ class NoOpLogger:
         """No-op warning logging."""
         pass
 
+    warning = warn
+
     def error(
         self, message: str, error: Optional[Exception] = None, context: Optional[Any] = None
     ) -> None:
@@ -158,6 +160,8 @@ class ConsoleLogger:
         """Log warning message."""
         if self._should_log(LogLevel.WARN):
             self._logger.warning(f"{message}{self._format_context(context)}")
+
+    warning = warn
 
     def error(
         self, message: str, error: Optional[Exception] = None, context: Optional[Any] = None
