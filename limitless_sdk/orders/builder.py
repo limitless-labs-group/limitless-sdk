@@ -93,11 +93,25 @@ class OrderBuilder:
         if size <= 0:
             raise ValueError(f"Size must be positive, got {size}")
 
+        original_price = price
+
         # Round price to tick, then round to tick's decimal precision
         # to eliminate IEEE 754 drift (e.g., 950 * 0.001 = 0.9500000000000001)
         tick_str = str(self._price_tick)
         tick_decimals = len(tick_str.split('.')[-1]) if '.' in tick_str else 0
         price = round(round(price / self._price_tick) * self._price_tick, tick_decimals)
+
+        # Reject values that become invalid after tick rounding (e.g., 0.0001 -> 0.0 with 0.001 tick).
+        if not 0 < price < 1:
+            original_price_str = f"{original_price:.16f}".rstrip("0").rstrip(".")
+            input_decimals = (
+                len(original_price_str.split(".")[-1]) if "." in original_price_str else 0
+            )
+            raise ValueError(
+                f"Invalid price: {original_price}. API supports max {tick_decimals} decimal places "
+                f"(tick {self._price_tick}), got {input_decimals}. "
+                f"Values with {input_decimals} decimals (e.g. {original_price}) are not allowed."
+            )
 
         # Generate order parameters
         salt = self._generate_salt()
@@ -262,6 +276,9 @@ class OrderBuilder:
         shares = round(size * shares_scale)
         price_int = round(price * price_scale)
         tick_int = round(self._price_tick * price_scale)
+
+        if price_int <= 0:
+            raise ValueError(f"Invalid price: {price}. Price must be greater than 0.")
 
         # Validate price is tick-aligned
         if price_int % tick_int != 0:

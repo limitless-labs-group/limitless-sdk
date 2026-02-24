@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **IEEE 754 float drift in tick-aligned price**: Fixed `OrderBuilder.build_order()` where multiplying back by tick size introduced float noise (e.g., `950 * 0.001` = `0.9500000000000001`). Added `round(price, tick_decimals)` to eliminate drift before sending price to the API.
 - **Logger method name mismatch**: Added `warning` alias to `NoOpLogger` and `ConsoleLogger` to match callers using `.warning()` (Python's standard naming) while the interface defined `.warn()`. This caused `AttributeError` crashes when `OrderClient` attempted to log without a custom logger.
 - **MakerMatch model missing optional fields**: Made `created_at`, `matched_size`, and `order_id` fields optional in `MakerMatch` to handle API responses that don't include all fields.
+- **Validation for 3 decimal places**: API allows only 3 decimals places, and sending can lead API error.
 
 ---
 
