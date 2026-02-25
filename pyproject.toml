@@ -1,6 +1,6 @@
 [project]
 name = "limitless-sdk"
-version = "1.0.1"
+version = "1.0.2"
 description = "Python SDK for Limitless Exchange"
 authors = [{ name = "Limitless", email = "hey@limitless.network" }]
 license = "MIT"
