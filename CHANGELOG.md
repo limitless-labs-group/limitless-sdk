@@ -5,6 +5,18 @@ All notable changes to the Limitless Exchange Python SDK will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1]
+
+### Fixed
+
+- **IEEE 754 float precision in order pricing**: Fixed `OrderBuilder._calculate_amounts()` using `int()` to scale float values to integers, which truncated prices like `0.95` to `949999` instead of `950000`. Changed to `round()` for correct conversion.
+- **IEEE 754 float drift in tick-aligned price**: Fixed `OrderBuilder.build_order()` where multiplying back by tick size introduced float noise (e.g., `950 * 0.001` = `0.9500000000000001`). Added `round(price, tick_decimals)` to eliminate drift before sending price to the API.
+- **Logger method name mismatch**: Added `warning` alias to `NoOpLogger` and `ConsoleLogger` to match callers using `.warning()` (Python's standard naming) while the interface defined `.warn()`. This caused `AttributeError` crashes when `OrderClient` attempted to log without a custom logger.
+- **MakerMatch model missing optional fields**: Made `created_at`, `matched_size`, and `order_id` fields optional in `MakerMatch` to handle API responses that don't include all fields.
+- **Validation for 3 decimal places**: API allows only 3 decimals places, and sending can lead API error.
+
+---
+
 ## [1.0.0]
 
 ### Release Notes
@@ -212,7 +224,7 @@ The following versions were development releases leading to v1.0.0:
 For issues, questions, or contributions:
 
 - GitHub Issues: [Create an issue](https://github.com/limitless-labs-group/limitless-exchange-ts-sdk/issues)
-- Email: support@limitless.ai
+- Email: hey@limitless.network
 
 ## License
 

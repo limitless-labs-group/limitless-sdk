@@ -39,20 +39,14 @@ class APIError(Exception):
         return self.status_code in (401, 403)
 
     def __str__(self) -> str:
-        """String representation showing full API response."""
-        if self.response_data:
-            import json
-            try:
-                # Return raw API response as-is (1:1)
-                if isinstance(self.response_data, dict):
-                    return json.dumps(self.response_data, indent=2)
-                else:
-                    return str(self.response_data)
-            except:
-                return str(self.response_data)
-
-        # Fallback to message if no response data
-        return self.message
+        """String representation with context."""
+        parts = []
+        if self.method and self.url:
+            parts.append(f"{self.method} {self.url}")
+        if self.status_code:
+            parts.append(f"HTTP {self.status_code}")
+        parts.append(self.message)
+        return " | ".join(parts)
 
     def __repr__(self) -> str:
         """String representation of error."""
