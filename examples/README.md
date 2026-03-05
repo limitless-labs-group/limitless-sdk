@@ -44,6 +44,9 @@ RetryableClient pattern for automatic retry on transient failures.
 ### [08_websocket_events.py](./08_websocket_events.py)
 Real-time orderbook updates via WebSocket subscription.
 
+### [09_market_pages_navigation.py](./09_market_pages_navigation.py)
+Market-pages navigation API: navigation tree, by-path resolution, markets filters, cursor/offset pagination, property keys.
+
 ## Key Concepts
 
 **Token ID Extraction:**

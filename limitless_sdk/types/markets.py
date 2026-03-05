@@ -1,6 +1,6 @@
 """Market-related type definitions."""
 
-from typing import List, Optional, Literal, Dict, Any
+from typing import List, Optional, Literal, Dict, Any, Union
 from pydantic import BaseModel, Field, ConfigDict
 
 
@@ -70,8 +70,9 @@ class MarketSettings(BaseModel):
     min_size: str = Field(alias="minSize")
     max_spread: float = Field(alias="maxSpread")
     daily_reward: str = Field(alias="dailyReward")
-    rewards_epoch: str = Field(alias="rewardsEpoch")
-    c: str
+    rewards_epoch: Union[str, int, float] = Field(alias="rewardsEpoch")
+    c: Union[str, int, float]
+    rebate_rate: Optional[float] = Field(None, alias="rebateRate")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -287,6 +288,10 @@ class Market(BaseModel):
     metadata: MarketMetadata
     volume: Optional[str] = None
     volume_formatted: Optional[str] = Field(None, alias="volumeFormatted")
+    open_interest: Optional[str] = Field(None, alias="openInterest")
+    open_interest_formatted: Optional[str] = Field(None, alias="openInterestFormatted")
+    liquidity: Optional[str] = None
+    liquidity_formatted: Optional[str] = Field(None, alias="liquidityFormatted")
 
     # CLOB single market fields
     condition_id: Optional[str] = Field(None, alias="conditionId")
@@ -298,9 +303,13 @@ class Market(BaseModel):
     settings: Optional[MarketSettings] = None
     venue: Optional[Venue] = None
     logo: Optional[str] = None
+    image_url: Optional[str] = Field(None, alias="imageUrl")
     price_oracle_metadata: Optional[PriceOracleMetadata] = Field(None, alias="priceOracleMetadata")
     order_in_group: Optional[int] = Field(None, alias="orderInGroup")
     winning_outcome_index: Optional[int] = Field(None, alias="winningOutcomeIndex")
+    automation_type: Optional[str] = Field(None, alias="automationType")
+    trends: Optional[Any] = None
+    position_ids: Optional[List[str]] = Field(None, alias="positionIds")
 
     # NegRisk group market fields
     outcome_tokens: Optional[List[str]] = Field(None, alias="outcomeTokens")

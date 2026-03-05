@@ -12,11 +12,12 @@ Example:
     >>> markets = await market_fetcher.get_markets()
 """
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 
 # API layer - HTTP client and error handling
 from .api import (
     HttpClient,
+    HttpRawResponse,
     APIError,
     RateLimitError,
     AuthenticationError,
@@ -30,6 +31,7 @@ from .api import (
 
 # Markets module
 from .markets import MarketFetcher
+from .market_pages import MarketPageFetcher
 
 # Portfolio module
 from .portfolio import PortfolioFetcher
@@ -77,6 +79,21 @@ from .types import (
     ActiveMarketsSortBy,
     ActiveMarketsParams,
     ActiveMarketsResponse,
+    NavigationNode,
+    FilterGroupOption,
+    FilterGroup,
+    BreadcrumbItem,
+    MarketPage,
+    PropertyOption,
+    PropertyKey,
+    OffsetPagination,
+    CursorPagination,
+    MarketPageSortField,
+    MarketPageSort,
+    MarketPageMarketsParams,
+    MarketPageMarketsOffsetResponse,
+    MarketPageMarketsCursorResponse,
+    MarketPageMarketsResponse,
     # Order types
     Side,
     OrderType,
@@ -133,6 +150,7 @@ __all__ = [
     "__version__",
     # API layer
     "HttpClient",
+    "HttpRawResponse",
     "APIError",
     "RateLimitError",
     "AuthenticationError",
@@ -142,6 +160,7 @@ __all__ = [
     "RetryableClient",
     # Markets module
     "MarketFetcher",
+    "MarketPageFetcher",
     # Portfolio module
     "PortfolioFetcher",
     # Orders module
@@ -179,6 +198,21 @@ __all__ = [
     "ActiveMarketsSortBy",
     "ActiveMarketsParams",
     "ActiveMarketsResponse",
+    "NavigationNode",
+    "FilterGroupOption",
+    "FilterGroup",
+    "BreadcrumbItem",
+    "MarketPage",
+    "PropertyOption",
+    "PropertyKey",
+    "OffsetPagination",
+    "CursorPagination",
+    "MarketPageSortField",
+    "MarketPageSort",
+    "MarketPageMarketsParams",
+    "MarketPageMarketsOffsetResponse",
+    "MarketPageMarketsCursorResponse",
+    "MarketPageMarketsResponse",
     # Order types
     "Side",
     "OrderType",
