@@ -106,6 +106,20 @@ async def test_get_market_page_by_path_missing_location_raises():
 
 
 @pytest.mark.asyncio
+async def test_get_market_page_by_path_malformed_by_path_redirect_raises():
+    http_client = AsyncMock()
+    http_client.get_raw.return_value = AsyncMock(
+        status=301,
+        headers={"location": "/market-pages/by-path"},
+        data="",
+    )
+
+    fetcher = MarketPageFetcher(http_client)
+    with pytest.raises(RuntimeError, match="missing required 'path' query parameter"):
+        await fetcher.get_market_page_by_path("/malformed-redirect")
+
+
+@pytest.mark.asyncio
 async def test_get_market_page_by_path_redirect_depth_limit():
     http_client = AsyncMock()
     http_client.get_raw.side_effect = [
@@ -171,6 +185,35 @@ async def test_get_markets_returns_cursor_response_and_serializes_array_filters(
     called_endpoint = http_client.get.await_args.args[0]
     assert "ticker=btc" in called_endpoint
     assert "ticker=eth" in called_endpoint
+
+
+@pytest.mark.asyncio
+async def test_get_markets_accepts_numeric_and_boolean_filters():
+    http_client = AsyncMock()
+    http_client.get.return_value = {
+        "data": [_market_payload()],
+        "pagination": {"page": 1, "limit": 10, "total": 1, "totalPages": 1},
+    }
+
+    fetcher = MarketPageFetcher(http_client)
+    await fetcher.get_markets(
+        "page-id",
+        {
+            "limit": 10,
+            "filters": {
+                "durationHours": 24,
+                "isLive": True,
+                "ticker": ["btc", 7, False],
+            },
+        },
+    )
+
+    called_endpoint = http_client.get.await_args.args[0]
+    assert "durationHours=24" in called_endpoint
+    assert "isLive=true" in called_endpoint
+    assert "ticker=btc" in called_endpoint
+    assert "ticker=7" in called_endpoint
+    assert "ticker=false" in called_endpoint
 
 
 @pytest.mark.asyncio
@@ -243,4 +286,3 @@ async def test_property_key_endpoints():
 
     assert http_client.get.await_args_list[2].args[0] == "/property-keys/k1/options"
     assert http_client.get.await_args_list[3].args[0] == "/property-keys/k1/options?parentId=parent-1"
-

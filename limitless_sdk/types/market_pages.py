@@ -6,6 +6,10 @@ from pydantic import BaseModel, Field, ConfigDict
 from .markets import Market
 
 
+FilterPrimitive = Union[str, int, float, bool]
+FilterValue = Union[FilterPrimitive, List[FilterPrimitive]]
+
+
 class NavigationNode(BaseModel):
     """Navigation node returned by /navigation endpoint."""
 
@@ -136,7 +140,7 @@ class MarketPageMarketsParams(BaseModel):
     limit: Optional[int] = None
     sort: Optional[MarketPageSort] = None
     cursor: Optional[str] = None
-    filters: Optional[Dict[str, Union[str, List[str]]]] = None
+    filters: Optional[Dict[str, FilterValue]] = None
 
 
 class MarketPageMarketsOffsetResponse(BaseModel):
@@ -154,4 +158,3 @@ class MarketPageMarketsCursorResponse(BaseModel):
 
 
 MarketPageMarketsResponse = Union[MarketPageMarketsOffsetResponse, MarketPageMarketsCursorResponse]
-

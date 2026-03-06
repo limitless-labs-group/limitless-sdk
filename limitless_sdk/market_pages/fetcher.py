@@ -80,13 +80,21 @@ class MarketPageFetcher:
         if location.startswith(direct_by_path_prefix):
             parsed = urlparse(location)
             path_values = parse_qs(parsed.query).get("path", [])
-            return path_values[0] if path_values else "/"
+            if not path_values or not path_values[0]:
+                raise RuntimeError(
+                    "Redirect location '/market-pages/by-path' is missing required 'path' query parameter"
+                )
+            return path_values[0]
 
         if location.lower().startswith(("http://", "https://")):
             parsed = urlparse(location)
             if parsed.path == direct_by_path_prefix:
                 path_values = parse_qs(parsed.query).get("path", [])
-                return path_values[0] if path_values else "/"
+                if not path_values or not path_values[0]:
+                    raise RuntimeError(
+                        "Redirect location '/market-pages/by-path' is missing required 'path' query parameter"
+                    )
+                return path_values[0]
             return parsed.path or "/"
 
         return location
@@ -121,9 +129,9 @@ class MarketPageFetcher:
         if parsed_params.filters:
             for key, value in parsed_params.filters.items():
                 if isinstance(value, list):
-                    query_parts.extend((key, str(item)) for item in value)
+                    query_parts.extend((key, self._stringify_filter_value(item)) for item in value)
                 else:
-                    query_parts.append((key, str(value)))
+                    query_parts.append((key, self._stringify_filter_value(value)))
 
         query_string = urlencode(query_parts, doseq=True)
         endpoint = f"/market-pages/{page_id}/markets"
@@ -168,3 +176,8 @@ class MarketPageFetcher:
         response_data = await self._http_client.get(endpoint)
         return [PropertyOption.model_validate(item) for item in response_data]
 
+    @staticmethod
+    def _stringify_filter_value(value: Any) -> str:
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        return str(value)

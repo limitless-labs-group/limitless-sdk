@@ -311,12 +311,12 @@ class HttpClient:
 
             headers_map = {str(k).lower(): str(v) for k, v in response.headers.items()}
 
-            if accepted_statuses and response.status in accepted_statuses:
-                return HttpRawResponse(status=response.status, headers=headers_map, data=data)
-
             if response.status >= 400:
                 error = self._handle_error_response(response.status, data, path, "GET")
                 raise error
+
+            if accepted_statuses and response.status in accepted_statuses:
+                return HttpRawResponse(status=response.status, headers=headers_map, data=data)
 
             return HttpRawResponse(status=response.status, headers=headers_map, data=data)
 
