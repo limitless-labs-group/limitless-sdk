@@ -1,7 +1,8 @@
 """HTTP client for Limitless Exchange API."""
 
 import json
-from typing import Any, Dict, Optional
+from dataclasses import dataclass
+from typing import Any, Dict, Optional, Set
 from urllib.parse import urlencode
 import os
 import aiohttp
@@ -12,6 +13,21 @@ from ..types.logger import ILogger, NoOpLogger
 
 DEFAULT_API_URL = "https://api.limitless.exchange"
 DEFAULT_TIMEOUT = 30
+
+
+@dataclass
+class HttpRawResponse:
+    """Raw HTTP response with metadata.
+
+    Attributes:
+        status: HTTP status code
+        headers: Response headers (lower-cased keys)
+        data: Parsed response body (JSON or text)
+    """
+
+    status: int
+    headers: Dict[str, str]
+    data: Any
 
 
 class HttpClient:
@@ -208,7 +224,7 @@ class HttpClient:
 
         url = f"{self.base_url}{path}"
         if params:
-            url = f"{url}?{urlencode(params)}"
+            url = f"{url}?{urlencode(params, doseq=True)}"
 
         request_headers = self._prepare_headers(headers)
         request_headers["Content-Type"] = "application/json"
@@ -237,6 +253,72 @@ class HttpClient:
                 raise error
 
             return data
+
+    async def get_raw(
+        self,
+        path: str,
+        params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
+        allow_redirects: bool = True,
+        accepted_statuses: Optional[Set[int]] = None,
+    ) -> HttpRawResponse:
+        """Perform GET request and return status/headers/data.
+
+        Useful for endpoints requiring manual redirect handling.
+
+        Args:
+            path: Request path (e.g., "/market-pages/by-path")
+            params: Query parameters
+            headers: Additional headers
+            allow_redirects: Whether to follow redirects automatically
+            accepted_statuses: Optional set of non-error statuses to accept explicitly
+
+        Returns:
+            HttpRawResponse with status, headers and parsed body
+
+        Raises:
+            APIError: If request fails (status >= 400)
+        """
+        await self._ensure_session()
+
+        url = f"{self.base_url}{path}"
+        if params:
+            url = f"{url}?{urlencode(params, doseq=True)}"
+
+        request_headers = self._prepare_headers(headers)
+        request_headers["Content-Type"] = "application/json"
+
+        self._logger.debug(
+            f"GET {path} (raw)",
+            {
+                "host": self.base_url,
+                "full_url": url,
+                "params": params,
+                "allow_redirects": allow_redirects,
+                "headers": {k: v for k, v in request_headers.items() if k.lower() != 'x-api-key'},
+            },
+        )
+
+        async with self._session.get(
+            url,
+            headers=request_headers,
+            allow_redirects=allow_redirects,
+        ) as response:
+            try:
+                data = await response.json()
+            except aiohttp.ContentTypeError:
+                data = await response.text()
+
+            headers_map = {str(k).lower(): str(v) for k, v in response.headers.items()}
+
+            if response.status >= 400:
+                error = self._handle_error_response(response.status, data, path, "GET")
+                raise error
+
+            if accepted_statuses and response.status in accepted_statuses:
+                return HttpRawResponse(status=response.status, headers=headers_map, data=data)
+
+            return HttpRawResponse(status=response.status, headers=headers_map, data=data)
 
     async def post(
         self,

@@ -5,6 +5,31 @@ All notable changes to the Limitless Exchange Python SDK will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3]
+
+### Added
+
+- New `market_pages` module with `MarketPageFetcher`:
+  - `get_navigation()`
+  - `get_market_page_by_path()` with manual `301` follow via `Location`
+  - `get_markets()` with filters and offset/cursor response handling
+  - `get_property_keys()`, `get_property_key()`, `get_property_options()`
+- New market-pages type models in `limitless_sdk.types.market_pages`:
+  - `NavigationNode`, `MarketPage`, `PropertyKey`, `PropertyOption`
+  - `MarketPageMarketsParams`, `MarketPageMarketsOffsetResponse`, `MarketPageMarketsCursorResponse`
+- `HttpClient.get_raw()` and `HttpRawResponse` for endpoints requiring access to status/headers (redirect handling).
+- New end-to-end example: `examples/09_market_pages_navigation.py`.
+- New market-pages test suite: `tests/test_market_page_fetcher.py`.
+
+### Changed
+
+- Updated query serialization to `urlencode(..., doseq=True)` for repeated filter keys (e.g. `ticker=btc&ticker=eth`).
+- Extended market model parity for market-pages payloads:
+  - `MarketSettings.rewards_epoch` and `MarketSettings.c` now support string/number values
+  - added optional `rebate_rate`
+  - added optional market fields (`open_interest`, `liquidity`, `image_url`, `automation_type`, `trends`, `position_ids`, formatted variants)
+- Public exports updated to include market-pages fetcher, types, and raw HTTP response type.
+
 ## [1.0.2]
 
 ### Fixed

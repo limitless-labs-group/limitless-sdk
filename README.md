@@ -6,6 +6,7 @@ A minimalistic, async Python SDK for interacting with the Limitless Exchange API
 
 - 🔐 **API Key authentication** - Simple and secure authentication with API keys
 - 📈 **Market data access** - Markets, orderbooks, and historical data
+- 🧭 **Market pages navigation** - Navigation tree, dynamic filters, property keys
 - 📋 **Order management** - GTC and FOK orders with automatic signing
 - 💼 **Portfolio tracking** - Positions and user history
 - 🔄 **Automatic retries** - Configurable retry logic with error handling
@@ -152,6 +153,38 @@ print(f"NO Token: {market.tokens.no}")
 
 # Venue data is now cached for efficient order creation
 # Includes: exchange address (for signing) and adapter address (for NegRisk approvals)
+```
+
+## Market Pages & Navigation
+
+```python
+from limitless_sdk.api import HttpClient
+from limitless_sdk.market_pages import MarketPageFetcher
+
+http_client = HttpClient(base_url="https://api.limitless.exchange")
+page_fetcher = MarketPageFetcher(http_client)
+
+# 1) Navigation tree
+navigation = await page_fetcher.get_navigation()
+
+# 2) Resolve page by path (manual 301 handled internally)
+page = await page_fetcher.get_market_page_by_path("/crypto")
+
+# 3) Get markets with filters
+markets = await page_fetcher.get_markets(
+    page.id,
+    {
+        "limit": 20,
+        "sort": "-updatedAt",
+        "filters": {"ticker": ["btc", "eth"]},
+    },
+)
+
+# 4) Property keys and options
+property_keys = await page_fetcher.get_property_keys()
+if property_keys:
+    key = await page_fetcher.get_property_key(property_keys[0].id)
+    options = await page_fetcher.get_property_options(key.id)
 ```
 
 ### Get Orderbook

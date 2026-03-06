@@ -1,6 +1,6 @@
 """API module for HTTP client and error handling."""
 
-from .http_client import HttpClient
+from .http_client import HttpClient, HttpRawResponse
 from .errors import (
     APIError,
     RateLimitError,
@@ -15,6 +15,7 @@ from .retry import (
 
 __all__ = [
     "HttpClient",
+    "HttpRawResponse",
     "APIError",
     "RateLimitError",
     "AuthenticationError",
