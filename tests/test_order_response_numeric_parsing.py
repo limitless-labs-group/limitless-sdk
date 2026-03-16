@@ -61,3 +61,19 @@ def test_order_response_rejects_non_finite_price() -> None:
 
     with pytest.raises(ValidationError):
         OrderResponse(order=payload, makerMatches=[])
+
+
+def test_order_response_rejects_unsafe_float_integer_for_salt() -> None:
+    payload = _base_order_payload()
+    payload["salt"] = float(9_007_199_254_740_993)
+
+    with pytest.raises(ValidationError):
+        OrderResponse(order=payload, makerMatches=[])
+
+
+def test_order_response_rejects_large_integer_like_price_string() -> None:
+    payload = _base_order_payload()
+    payload["price"] = "9007199254740993"
+
+    with pytest.raises(ValidationError):
+        OrderResponse(order=payload, makerMatches=[])
