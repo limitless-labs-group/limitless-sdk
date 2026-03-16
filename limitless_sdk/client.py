@@ -5,8 +5,10 @@ import logging
 import math
 import time
 import os
+import platform
 from functools import wraps
 from typing import Dict, List, Optional, Union, Any
+from importlib.metadata import PackageNotFoundError, version
 
 import aiohttp
 from eth_account import Account
@@ -21,6 +23,22 @@ from .models import (
 )
 
 logger = logging.getLogger(__name__)
+SDK_ID = "lmts-sdk-py"
+
+
+def _resolve_sdk_version() -> str:
+    try:
+        return version("limitless-sdk")
+    except PackageNotFoundError:
+        return "0.0.0"
+
+
+def _build_sdk_tracking_headers() -> Dict[str, str]:
+    sdk_version = _resolve_sdk_version()
+    return {
+        "user-agent": f"{SDK_ID}/{sdk_version} (python/{platform.python_version()})",
+        "x-sdk-version": f"{SDK_ID}/{sdk_version}",
+    }
 
 
 def retry_on_rate_limit(max_retries: int = 2, delays: List[int] = None):
@@ -128,6 +146,7 @@ class LimitlessClient:
         """Create an aiohttp session with API key authentication."""
         if self.session is None or self.session.closed:
             headers = {
+                **_build_sdk_tracking_headers(),
                 "Content-Type": "application/json",
             }
 
@@ -644,7 +663,9 @@ class LimitlessClient:
         # For DELETE requests, we need to avoid sending Content-Type header
         # Create a new request without the default session headers
         # but include additional headers (like X-API-Key, rate limiting bypass)
-        delete_headers = self.additional_headers.copy() if self.additional_headers else {}
+        delete_headers = _build_sdk_tracking_headers()
+        if self.additional_headers:
+            delete_headers.update(self.additional_headers)
 
         # Add X-API-Key header for authentication
         if self.api_key:

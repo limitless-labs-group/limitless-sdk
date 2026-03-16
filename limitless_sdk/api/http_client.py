@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional, Set
 from urllib.parse import urlencode
 import os
+import platform
+from importlib.metadata import PackageNotFoundError, version
 import aiohttp
 
 from .errors import APIError, RateLimitError, AuthenticationError
@@ -13,6 +15,22 @@ from ..types.logger import ILogger, NoOpLogger
 
 DEFAULT_API_URL = "https://api.limitless.exchange"
 DEFAULT_TIMEOUT = 30
+SDK_ID = "lmts-sdk-py"
+
+
+def _resolve_sdk_version() -> str:
+    try:
+        return version("limitless-sdk")
+    except PackageNotFoundError:
+        return "0.0.0"
+
+
+def _build_sdk_tracking_headers() -> Dict[str, str]:
+    sdk_version = _resolve_sdk_version()
+    return {
+        "user-agent": f"{SDK_ID}/{sdk_version} (python/{platform.python_version()})",
+        "x-sdk-version": f"{SDK_ID}/{sdk_version}",
+    }
 
 
 @dataclass
@@ -89,10 +107,10 @@ class HttpClient:
             # Content-Type will be added per-request where needed
             # Note: additional_headers are added in _prepare_headers() per-request
             headers = {
+                **_build_sdk_tracking_headers(),
                 "Accept": "application/json",
             }
 
-      
             self._session = aiohttp.ClientSession(
                 headers=headers, timeout=self._timeout
             )

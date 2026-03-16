@@ -1,8 +1,64 @@
 """Order-related type definitions."""
 
 from enum import Enum, IntEnum
+import math
+import re
 from typing import List, Optional, Literal
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
+
+
+_INTEGER_STRING_RE = re.compile(r"^[+-]?\d+$")
+
+
+def _parse_integer_like(value: object) -> int:
+    """Parse integer-like API values (int/float-integer/numeric-string) strictly."""
+    if isinstance(value, bool):
+        raise ValueError("value must be an integer or numeric string")
+
+    if isinstance(value, int):
+        return value
+
+    if isinstance(value, float):
+        if math.isfinite(value) and value.is_integer():
+            return int(value)
+        raise ValueError("value must be a finite integer")
+
+    if isinstance(value, str):
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("value cannot be an empty string")
+        if not _INTEGER_STRING_RE.fullmatch(trimmed):
+            raise ValueError(f"invalid integer string: {value!r}")
+        return int(trimmed)
+
+    raise ValueError("value must be an integer or numeric string")
+
+
+def _parse_number_like(value: object) -> Optional[float]:
+    """Parse number-like API values (number/numeric-string), preserving None."""
+    if value is None:
+        return None
+
+    if isinstance(value, bool):
+        raise ValueError("value must be a finite number or numeric string")
+
+    if isinstance(value, (int, float)):
+        number = float(value)
+    elif isinstance(value, str):
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("value cannot be an empty string")
+        try:
+            number = float(trimmed)
+        except ValueError as exc:
+            raise ValueError(f"invalid numeric string: {value!r}") from exc
+    else:
+        raise ValueError("value must be a finite number or numeric string")
+
+    if not math.isfinite(number):
+        raise ValueError("value must be finite")
+
+    return number
 
 
 class Side(IntEnum):
@@ -81,6 +137,16 @@ class UnsignedOrder(BaseModel):
     price: Optional[float] = None  # Required for GTC orders, NOT part of EIP-712 signature
 
     model_config = ConfigDict(populate_by_name=True)
+
+    @field_validator("salt", "maker_amount", "taker_amount", mode="before")
+    @classmethod
+    def _parse_integer_payload_fields(cls, value: object) -> int:
+        return _parse_integer_like(value)
+
+    @field_validator("price", mode="before")
+    @classmethod
+    def _parse_price_payload_field(cls, value: object) -> Optional[float]:
+        return _parse_number_like(value)
 
 
 class SignedOrder(UnsignedOrder):

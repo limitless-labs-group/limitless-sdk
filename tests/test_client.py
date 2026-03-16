@@ -101,6 +101,9 @@ async def test_additional_headers_in_session():
         
         # Check that default headers are present
         assert headers['Content-Type'] == 'application/json'
+        assert headers['user-agent'].startswith('lmts-sdk-py/')
+        assert 'python/' in headers['user-agent']
+        assert headers['x-sdk-version'].startswith('lmts-sdk-py/')
         
         # Check that additional headers are present
         assert headers['x-secret-bypass'] == 'secret-token'

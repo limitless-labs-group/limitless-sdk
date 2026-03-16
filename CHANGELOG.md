@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Updated query serialization to `urlencode(..., doseq=True)` for repeated filter keys (e.g. `ticker=btc&ticker=eth`).
+- Hardened `OrderResponse` numeric parsing for `create_order()` payload fields (`makerAmount`, `takerAmount`, `price`, `salt`) with strict number/numeric-string validation and large-integer-safe `salt` parsing.
 - Extended market model parity for market-pages payloads:
   - `MarketSettings.rewards_epoch` and `MarketSettings.c` now support string/number values
   - added optional `rebate_rate`

@@ -8,6 +8,7 @@ A minimalistic, async Python SDK for interacting with the Limitless Exchange API
 - 📈 **Market data access** - Markets, orderbooks, and historical data
 - 🧭 **Market pages navigation** - Navigation tree, dynamic filters, property keys
 - 📋 **Order management** - GTC and FOK orders with automatic signing
+- 🔢 **IEEE-safe order payload parsing** - `create_order()` handles `makerAmount`, `takerAmount`, `price`, and `salt` returned as numeric strings
 - 💼 **Portfolio tracking** - Positions and user history
 - 🔄 **Automatic retries** - Configurable retry logic with error handling
 - 🌐 **WebSocket support** - Real-time orderbook updates
