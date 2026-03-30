@@ -5,6 +5,7 @@ A minimalistic, async Python SDK for interacting with the Limitless Exchange API
 ## Features
 
 - 🔐 **API Key authentication** - Simple and secure authentication with API keys
+- 🔏 **HMAC-scoped partner authentication** - Derived api-token v3 support for partner workflows
 - 📈 **Market data access** - Markets, orderbooks, and historical data
 - 🧭 **Market pages navigation** - Navigation tree, dynamic filters, property keys
 - 📋 **Order management** - GTC and FOK orders with automatic signing
@@ -12,6 +13,7 @@ A minimalistic, async Python SDK for interacting with the Limitless Exchange API
 - 💼 **Portfolio tracking** - Positions and user history
 - 🔄 **Automatic retries** - Configurable retry logic with error handling
 - 🌐 **WebSocket support** - Real-time orderbook updates
+- 🤝 **Partner account + delegated trading helpers** - Server-wallet child accounts and delegated order create/cancel flows
 - 🛡️ **Custom headers** - Global and per-request header configuration
 - ⚡ **Async/await support** - Modern async Python with aiohttp
 - 🚀 **Venue caching** - Automatic contract address caching for optimized order creation
@@ -102,6 +104,68 @@ http_client = HttpClient(
 
 # All requests automatically include X-API-Key header
 ```
+
+### Partner API Token v3 / HMAC Authentication
+
+Use this flow when a partner first authenticates with a Privy identity token, derives a scoped API token, and then reuses the returned HMAC credentials for partner operations.
+
+```python
+import asyncio
+
+from limitless_sdk import (
+    Client,
+    DeriveApiTokenInput,
+    HMACCredentials,
+    ScopeTrading,
+    ScopeDelegatedSigning,
+    ScopeAccountCreation,
+)
+
+
+async def main():
+    identity_token = "privy-identity-token"
+
+    bootstrap = Client(base_url="https://api.limitless.exchange")
+    capabilities = await bootstrap.api_tokens.get_capabilities(identity_token)
+    print(capabilities.allowed_scopes)
+
+    derived = await bootstrap.api_tokens.derive_token(
+        identity_token,
+        DeriveApiTokenInput(
+            label="partner-bot",
+            scopes=[ScopeTrading, ScopeDelegatedSigning, ScopeAccountCreation],
+        ),
+    )
+
+    scoped = Client(
+        base_url="https://api.limitless.exchange",
+        hmac_credentials=HMACCredentials(
+            token_id=derived.token_id,
+            secret=derived.secret,
+        ),
+    )
+
+    tokens = await scoped.api_tokens.list_tokens()
+    print(f"Active tokens: {len(tokens)}")
+
+    await bootstrap.close()
+    await scoped.close()
+
+
+asyncio.run(main())
+```
+
+Partner surface added by this flow:
+- `api_tokens.get_capabilities()`
+- `api_tokens.derive_token()`
+- `api_tokens.list_tokens()`
+- `api_tokens.revoke_token()`
+- `partner_accounts.create_account()`
+- `delegated_orders.create_order()`
+- `delegated_orders.cancel_on_behalf_of()`
+- `delegated_orders.cancel_all_on_behalf_of()`
+
+Standard `X-API-Key` authentication remains fully supported for the existing portfolio, market, and regular order flows.
 
 ### Environment Variables
 

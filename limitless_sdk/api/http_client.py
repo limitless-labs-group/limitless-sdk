@@ -1,21 +1,49 @@
 """HTTP client for Limitless Exchange API."""
 
 import json
-from dataclasses import dataclass
-from typing import Any, Dict, Optional, Set
-from urllib.parse import urlencode
 import os
 import platform
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version
+from typing import Any, Dict, Optional, Set, Tuple
+from urllib.parse import urlencode
+
 import aiohttp
 
-from .errors import APIError, RateLimitError, AuthenticationError
+from .errors import (
+    APIError,
+    AuthenticationError,
+    ConflictError,
+    RateLimitError,
+    ValidationError,
+)
+from .hmac import compute_hmac_signature
+from ..types.api_tokens import HMACCredentials
 from ..types.logger import ILogger, NoOpLogger
 
 
 DEFAULT_API_URL = "https://api.limitless.exchange"
 DEFAULT_TIMEOUT = 30
 SDK_ID = "lmts-sdk-py"
+_AUTH_OVERRIDE_HEADERS = {
+    "authorization",
+    "cookie",
+    "identity",
+    "lmts-api-key",
+    "lmts-signature",
+    "lmts-timestamp",
+    "x-api-key",
+}
+_REDACTED_HEADERS = {
+    "authorization",
+    "cookie",
+    "identity",
+    "lmts-api-key",
+    "lmts-signature",
+    "lmts-timestamp",
+    "x-api-key",
+}
 
 
 def _resolve_sdk_version() -> str:
@@ -33,15 +61,23 @@ def _build_sdk_tracking_headers() -> Dict[str, str]:
     }
 
 
+def _build_iso_timestamp() -> str:
+    return (
+        datetime.now(timezone.utc)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
+
+
+def _serialize_json_body(data: Optional[Any]) -> str:
+    if data is None:
+        return ""
+    return json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+
+
 @dataclass
 class HttpRawResponse:
-    """Raw HTTP response with metadata.
-
-    Attributes:
-        status: HTTP status code
-        headers: Response headers (lower-cased keys)
-        data: Parsed response body (JSON or text)
-    """
+    """Raw HTTP response with metadata."""
 
     status: int
     headers: Dict[str, str]
@@ -49,136 +85,150 @@ class HttpRawResponse:
 
 
 class HttpClient:
-    """HTTP client wrapper for Limitless Exchange API.
-
-    This class provides a centralized HTTP client with x-api-key management,
-    error handling, and request/response interceptors.
-
-    Args:
-        base_url: Base URL for API requests (default: https://api.limitless.exchange)
-        timeout: Request timeout in seconds (default: 30)
-        x-api-key: api key for authenticated requests
-        additional_headers: Additional headers to include in all requests
-        logger: Optional logger for debugging (default: NoOpLogger)
-
-    Example:
-        >>> http_client = HttpClient()
-        >>> data = await http_client.get("/markets")
-    """
+    """HTTP client wrapper for Limitless Exchange API."""
 
     def __init__(
         self,
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
+        hmac_credentials: Optional[HMACCredentials] = None,
         timeout: int = DEFAULT_TIMEOUT,
         additional_headers: Optional[Dict[str, str]] = None,
         logger: Optional[ILogger] = None,
     ):
-        """Initialize HTTP client."""
         self.base_url = (
-              base_url or
-              os.getenv("LIMITLESS_API_URL") or
-              DEFAULT_API_URL
-          ).rstrip("/") 
+            base_url or os.getenv("LIMITLESS_API_URL") or DEFAULT_API_URL
+        ).rstrip("/")
         self._api_key = api_key or os.getenv("LIMITLESS_API_KEY")
+        self._hmac_credentials = (
+            hmac_credentials.model_copy()
+            if isinstance(hmac_credentials, HMACCredentials)
+            else (
+                HMACCredentials(**hmac_credentials)
+                if isinstance(hmac_credentials, dict)
+                else None
+            )
+        )
         self._timeout = aiohttp.ClientTimeout(total=timeout)
         self._additional_headers = additional_headers or {}
         self._logger = logger or NoOpLogger()
-        if not self._api_key:
-              self._logger.warn(
-                  "API key not set. Authenticated endpoints will fail. "
-                  "Set LIMITLESS_API_KEY environment variable or pass api_key parameter."
-              )
+        if not self._api_key and not self._hmac_credentials and not self._has_configured_header_auth():
+            self._logger.warn(
+                "No configured authentication found. Authenticated endpoints will fail. "
+                "Set LIMITLESS_API_KEY, pass api_key, configure hmac_credentials, or supply auth headers."
+            )
         self._session: Optional[aiohttp.ClientSession] = None
 
     async def __aenter__(self):
-        """Context manager entry."""
         await self._ensure_session()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit."""
         await self.close()
 
     async def _ensure_session(self) -> None:
-        """Ensure aiohttp session exists."""
         if self._session is None or self._session.closed:
-            # Only set Accept header by default (not Content-Type) - as this was passed to delete and causing issues :)
-            # Content-Type will be added per-request where needed
-            # Note: additional_headers are added in _prepare_headers() per-request
             headers = {
                 **_build_sdk_tracking_headers(),
                 "Accept": "application/json",
             }
-
-            self._session = aiohttp.ClientSession(
-                headers=headers, timeout=self._timeout
-            )
+            self._session = aiohttp.ClientSession(headers=headers, timeout=self._timeout)
 
     async def close(self) -> None:
-        """Close the aiohttp session."""
         if self._session and not self._session.closed:
             await self._session.close()
 
+    def get_logger(self) -> ILogger:
+        return self._logger
+
+    def get_api_key(self) -> Optional[str]:
+        return self._api_key
+
+    def get_hmac_credentials(self) -> Optional[HMACCredentials]:
+        if not self._hmac_credentials:
+            return None
+        return self._hmac_credentials.model_copy()
+
     def set_api_key(self, api_key: str) -> None:
-        """Set the API key for authenticated requests.
-
-        Args:
-            api_key: API key value
-
-        Example:
-            >>> http_client.set_api_key("sk_live_...")
-        """
         self._api_key = api_key
         self._logger.debug("API key updated")
 
     def clear_api_key(self) -> None:
-        """Clear the API key.
-
-        Example:
-            >>> http_client.clear_api_key()
-        """
         self._api_key = None
         self._logger.debug("API key cleared")
 
-    def _prepare_headers(self, additional_headers: Optional[Dict[str, str]] = None) -> Dict[str, str]:
-        """Prepare request headers.
+    def set_hmac_credentials(self, hmac_credentials: HMACCredentials) -> None:
+        self._hmac_credentials = hmac_credentials.model_copy()
+        self._logger.debug("HMAC credentials updated")
 
-        Args:
-            additional_headers: Additional headers for this request, like X-API-KEY
+    def clear_hmac_credentials(self) -> None:
+        self._hmac_credentials = None
+        self._logger.debug("HMAC credentials cleared")
 
-        Returns:
-            Complete headers dict including global additional_headers
-        """
-        headers = {}
-        if self._api_key:                    
-          headers["X-API-Key"] = self._api_key 
-          
-        # Add global headers from constructor
+    def require_auth(self, operation: str) -> None:
+        if self._api_key or self._hmac_credentials or self._has_configured_header_auth():
+            return
+        raise ValueError(
+            f"Authentication is required for {operation}; pass api_key, hmac_credentials, "
+            "or configure auth headers."
+        )
+
+    def _has_configured_header_auth(self) -> bool:
+        return any(
+            key.lower() in _AUTH_OVERRIDE_HEADERS
+            for key in self._additional_headers.keys()
+        )
+
+    def _build_url(self, path: str, params: Optional[Dict[str, Any]] = None) -> Tuple[str, str]:
+        request_path = path
+        if params:
+            request_path = f"{path}?{urlencode(params, doseq=True)}"
+        return f"{self.base_url}{request_path}", request_path
+
+    def _prepare_headers(
+        self,
+        method: str,
+        request_path: str,
+        body: str = "",
+        additional_headers: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, str]:
+        headers: Dict[str, str] = {}
+
         if self._additional_headers:
             headers.update(self._additional_headers)
-
-        # Add per-request headers (can override global headers)
         if additional_headers:
             headers.update(additional_headers)
 
+        if not any(key.lower() in _AUTH_OVERRIDE_HEADERS for key in headers.keys()):
+            if self._hmac_credentials:
+                timestamp = _build_iso_timestamp()
+                signature = compute_hmac_signature(
+                    self._hmac_credentials.secret,
+                    timestamp,
+                    method,
+                    request_path,
+                    body,
+                )
+                headers["lmts-api-key"] = self._hmac_credentials.token_id
+                headers["lmts-timestamp"] = timestamp
+                headers["lmts-signature"] = signature
+            elif self._api_key:
+                headers["X-API-Key"] = self._api_key
+
         return headers
+
+    def _sanitize_headers_for_logging(self, headers: Dict[str, str]) -> Dict[str, str]:
+        sanitized: Dict[str, str] = {}
+        for key, value in headers.items():
+            if key.lower() in _REDACTED_HEADERS:
+                sanitized[key] = "***"
+            else:
+                sanitized[key] = value
+        return sanitized
 
     def _handle_error_response(
         self, status: int, data: Any, url: str, method: str
     ) -> APIError:
-        """Transform error response into appropriate exception.
-
-        Args:
-            status: HTTP status code
-            data: Response data
-            url: Request URL
-            method: HTTP method
-
-        Returns:
-            Appropriate APIError subclass
-        """
-
         if isinstance(data, dict):
             if isinstance(data.get("message"), list):
                 messages = []
@@ -190,7 +240,6 @@ class HttpClient:
                         messages.append(str(err))
                 message = " | ".join(messages) or data.get("error", str(data))
             else:
-           
                 message = (
                     data.get("message")
                     or data.get("error")
@@ -207,17 +256,19 @@ class HttpClient:
                 "status": status,
                 "url": url,
                 "method": method,
-                "data": data
+                "data": data,
             },
         )
 
-  
+        if status == 400:
+            return ValidationError(message, status, data, url, method)
+        if status == 409:
+            return ConflictError(message, status, data, url, method)
         if status == 429:
             return RateLimitError(message, status, data, url, method)
-        elif status in (401, 403):
+        if status in (401, 403):
             return AuthenticationError(message, status, data, url, method)
-        else:
-            return APIError(message, status, data, url, method)
+        return APIError(message, status, data, url, method)
 
     async def get(
         self,
@@ -225,26 +276,10 @@ class HttpClient:
         params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
     ) -> Any:
-        """Perform GET request.
-
-        Args:
-            path: Request path (e.g., "/markets")
-            params: Query parameters
-            headers: Additional headers
-
-        Returns:
-            Response data
-
-        Raises:
-            APIError: If request fails
-        """
         await self._ensure_session()
 
-        url = f"{self.base_url}{path}"
-        if params:
-            url = f"{url}?{urlencode(params, doseq=True)}"
-
-        request_headers = self._prepare_headers(headers)
+        url, request_path = self._build_url(path, params)
+        request_headers = self._prepare_headers("GET", request_path, "", headers)
         request_headers["Content-Type"] = "application/json"
 
         self._logger.debug(
@@ -253,24 +288,34 @@ class HttpClient:
                 "host": self.base_url,
                 "full_url": url,
                 "params": params,
-                "headers": {k: v for k, v in request_headers.items() if k.lower() != 'x-api-key'},  # Hide x-api-key for security
-            }
+                "headers": self._sanitize_headers_for_logging(request_headers),
+            },
         )
 
         async with self._session.get(url, headers=request_headers) as response:
             try:
                 data = await response.json()
             except aiohttp.ContentTypeError:
-                # incase for some reson resp is not json
                 data = await response.text()
 
             if response.status >= 400:
-                error = self._handle_error_response(
-                    response.status, data, path, "GET"
-                )
-                raise error
+                raise self._handle_error_response(response.status, data, path, "GET")
 
             return data
+
+    async def get_with_identity(
+        self,
+        path: str,
+        identity_token: str,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> Any:
+        if not identity_token:
+            raise ValueError("identity_token is required")
+        return await self.get(
+            path,
+            params=params,
+            headers={"identity": f"Bearer {identity_token}"},
+        )
 
     async def get_raw(
         self,
@@ -280,30 +325,10 @@ class HttpClient:
         allow_redirects: bool = True,
         accepted_statuses: Optional[Set[int]] = None,
     ) -> HttpRawResponse:
-        """Perform GET request and return status/headers/data.
-
-        Useful for endpoints requiring manual redirect handling.
-
-        Args:
-            path: Request path (e.g., "/market-pages/by-path")
-            params: Query parameters
-            headers: Additional headers
-            allow_redirects: Whether to follow redirects automatically
-            accepted_statuses: Optional set of non-error statuses to accept explicitly
-
-        Returns:
-            HttpRawResponse with status, headers and parsed body
-
-        Raises:
-            APIError: If request fails (status >= 400)
-        """
         await self._ensure_session()
 
-        url = f"{self.base_url}{path}"
-        if params:
-            url = f"{url}?{urlencode(params, doseq=True)}"
-
-        request_headers = self._prepare_headers(headers)
+        url, request_path = self._build_url(path, params)
+        request_headers = self._prepare_headers("GET", request_path, "", headers)
         request_headers["Content-Type"] = "application/json"
 
         self._logger.debug(
@@ -313,7 +338,7 @@ class HttpClient:
                 "full_url": url,
                 "params": params,
                 "allow_redirects": allow_redirects,
-                "headers": {k: v for k, v in request_headers.items() if k.lower() != 'x-api-key'},
+                "headers": self._sanitize_headers_for_logging(request_headers),
             },
         )
 
@@ -330,8 +355,7 @@ class HttpClient:
             headers_map = {str(k).lower(): str(v) for k, v in response.headers.items()}
 
             if response.status >= 400:
-                error = self._handle_error_response(response.status, data, path, "GET")
-                raise error
+                raise self._handle_error_response(response.status, data, path, "GET")
 
             if accepted_statuses and response.status in accepted_statuses:
                 return HttpRawResponse(status=response.status, headers=headers_map, data=data)
@@ -344,27 +368,12 @@ class HttpClient:
         data: Optional[Any] = None,
         headers: Optional[Dict[str, str]] = None,
     ) -> Any:
-        """Perform POST request.
-
-        Args:
-            path: Request path
-            data: Request body data
-            headers: Additional headers
-
-        Returns:
-            Response data
-
-        Raises:
-            APIError: If request fails
-        """
         await self._ensure_session()
 
-        url = f"{self.base_url}{path}"
-        request_headers = self._prepare_headers(headers)
+        url, request_path = self._build_url(path)
+        body = _serialize_json_body(data)
+        request_headers = self._prepare_headers("POST", request_path, body, headers)
         request_headers["Content-Type"] = "application/json"
-
-        import time
-        start_time = time.time()
 
         self._logger.debug(
             f"POST {path}",
@@ -372,33 +381,46 @@ class HttpClient:
                 "host": self.base_url,
                 "full_url": url,
                 "has_data": data is not None,
-                "headers": {k: v for k, v in request_headers.items() if k.lower() != 'x-api-key'},  # excluding x-api-key for sec reasons
-            }
+                "headers": self._sanitize_headers_for_logging(request_headers),
+            },
         )
 
         async with self._session.post(
-            url, json=data, headers=request_headers
+            url,
+            data=body or None,
+            headers=request_headers,
         ) as response:
-            request_time = time.time() - start_time
-            self._logger.info(
-                f"POST {path} - HTTP request completed",
-                {
-                    "request_time_ms": round(request_time * 1000, 2),
-                    "status": response.status
-                }
-            )
             try:
                 response_data = await response.json()
             except aiohttp.ContentTypeError:
                 response_data = await response.text()
 
             if response.status >= 400:
-                error = self._handle_error_response(
-                    response.status, response_data, path, "POST"
-                )
-                raise error
+                raise self._handle_error_response(response.status, response_data, path, "POST")
 
             return response_data
+
+    async def post_with_identity(
+        self,
+        path: str,
+        identity_token: str,
+        data: Optional[Any] = None,
+    ) -> Any:
+        if not identity_token:
+            raise ValueError("identity_token is required")
+        return await self.post(
+            path,
+            data=data,
+            headers={"identity": f"Bearer {identity_token}"},
+        )
+
+    async def post_with_headers(
+        self,
+        path: str,
+        data: Optional[Any] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Any:
+        return await self.post(path, data=data, headers=headers)
 
     async def post_with_response(
         self,
@@ -406,30 +428,26 @@ class HttpClient:
         data: Optional[Any] = None,
         headers: Optional[Dict[str, str]] = None,
     ) -> aiohttp.ClientResponse:
-        """Perform POST request and return full response.
-
-        Useful when you need access to response headers.
-
-        Args:
-            path: Request path
-            data: Request body data
-            headers: Additional headers
-
-        Returns:
-            Full aiohttp ClientResponse object
-
-        Raises:
-            APIError: If request fails
-        """
         await self._ensure_session()
 
-        url = f"{self.base_url}{path}"
-        request_headers = self._prepare_headers(headers)
+        url, request_path = self._build_url(path)
+        body = _serialize_json_body(data)
+        request_headers = self._prepare_headers("POST", request_path, body, headers)
         request_headers["Content-Type"] = "application/json"
 
-        self._logger.debug(f"POST {path} (with response)", {"has_data": data is not None})
+        self._logger.debug(
+            f"POST {path} (with response)",
+            {
+                "has_data": data is not None,
+                "headers": self._sanitize_headers_for_logging(request_headers),
+            },
+        )
 
-        response = await self._session.post(url, json=data, headers=request_headers)
+        response = await self._session.post(
+            url,
+            data=body or None,
+            headers=request_headers,
+        )
 
         if response.status >= 400:
             try:
@@ -437,41 +455,34 @@ class HttpClient:
             except aiohttp.ContentTypeError:
                 response_data = await response.text()
 
-            error = self._handle_error_response(
-                response.status, response_data, path, "POST"
-            )
-            raise error
+            raise self._handle_error_response(response.status, response_data, path, "POST")
 
         return response
 
     async def delete(
         self,
         path: str,
+        params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
     ) -> Any:
-        """Perform DELETE request.
-
-        Args:
-            path: Request path
-            headers: Additional headers
-
-        Returns:
-            Response data
-
-        Raises:
-            APIError: If request fails
-        """
         await self._ensure_session()
 
-        url = f"{self.base_url}{path}"
-        request_headers = self._prepare_headers(headers)
+        url, request_path = self._build_url(path, params)
+        request_headers = self._prepare_headers("DELETE", request_path, "", headers)
 
-        self._logger.debug(f"DELETE {path}")
+        self._logger.debug(
+            f"DELETE {path}",
+            {
+                "host": self.base_url,
+                "full_url": url,
+                "headers": self._sanitize_headers_for_logging(request_headers),
+            },
+        )
 
         async with self._session.delete(
             url,
             headers=request_headers,
-            skip_auto_headers=['Content-Type']
+            skip_auto_headers=["Content-Type"],
         ) as response:
             try:
                 data = await response.json()
@@ -479,9 +490,6 @@ class HttpClient:
                 data = await response.text()
 
             if response.status >= 400:
-                error = self._handle_error_response(
-                    response.status, data, path, "DELETE"
-                )
-                raise error
+                raise self._handle_error_response(response.status, data, path, "DELETE")
 
             return data

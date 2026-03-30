@@ -5,6 +5,57 @@ All notable changes to the Limitless Exchange Python SDK will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Partner-facing api-token v3 support:
+  - `ApiTokenService` for `get_capabilities()`, `derive_token()`, `list_tokens()`, and `revoke_token()`
+  - `PartnerAccountService` for `POST /profiles/partner-accounts`
+  - `DelegatedOrderService` for delegated create, cancel by id, and cancel all
+- New modular root `Client` that composes shared HTTP transport with:
+  - `markets`
+  - `market_pages`
+  - `portfolio`
+  - `api_tokens`
+  - `partner_accounts`
+  - `delegated_orders`
+- HMAC-scoped request signing in `HttpClient` with `HMACCredentials`
+- HMAC WebSocket handshake support for authenticated subscriptions
+- New partner-facing types:
+  - `HMACCredentials`
+  - `DeriveApiTokenInput`
+  - `DeriveApiTokenResponse`
+  - `ApiToken`
+  - `PartnerCapabilities`
+  - `CreatePartnerAccountInput`
+  - `CreatePartnerAccountEOAHeaders`
+  - `PartnerAccountResponse`
+- New examples under `examples/api_key_v3/`:
+  - token lifecycle
+  - partner account creation
+  - delegated trading
+  - narrated e2e flow
+  - websocket with HMAC auth
+- Focused tests for:
+  - HMAC header generation and auth precedence
+  - api-token service methods
+  - partner-account creation payloads and validation
+  - delegated order payloads and cancel helpers
+  - root client wiring
+  - websocket HMAC propagation
+
+### Changed
+
+- `HttpClient` now supports three auth shapes:
+  - standard `X-API-Key`
+  - scoped HMAC api-token v3 credentials
+  - per-request identity header helpers for Privy-authenticated partner endpoints
+- `HttpClient` now maps `400` to `ValidationError` and `409` to new `ConflictError`
+- Partner-account client payloads now validate `displayName` length with the backend's `44` character limit
+- Standard `X-API-Key` auth remains first-class and unchanged for the existing regular trading flow
+- README and examples now document the partner api-token v3 workflow explicitly
+
 ## [1.0.3]
 
 ### Added

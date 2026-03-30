@@ -126,3 +126,26 @@ class ValidationError(APIError):
             method: HTTP method
         """
         super().__init__(message, status_code, response_data, url, method)
+
+
+class ConflictError(APIError):
+    """Exception for conflict errors (409)."""
+
+    def __init__(
+        self,
+        message: str,
+        status_code: int = 409,
+        response_data: Optional[Any] = None,
+        url: Optional[str] = None,
+        method: Optional[str] = None,
+    ):
+        """Initialize conflict error.
+
+        Args:
+            message: Error message
+            status_code: HTTP status code (default 409)
+            response_data: Raw response data
+            url: Request URL
+            method: HTTP method
+        """
+        super().__init__(message, status_code, response_data, url, method)

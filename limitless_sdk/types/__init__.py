@@ -45,6 +45,27 @@ from .orders import (
     MakerMatch,
     OrderResponse,
 )
+from .api_tokens import (
+    ScopeTrading,
+    ScopeAccountCreation,
+    ScopeDelegatedSigning,
+    HMACCredentials,
+    ApiTokenProfile,
+    DeriveApiTokenInput,
+    DeriveApiTokenResponse,
+    ApiToken,
+    PartnerCapabilities,
+)
+from .partner_accounts import (
+    CreatePartnerAccountInput,
+    CreatePartnerAccountEOAHeaders,
+    PartnerAccountResponse,
+)
+from .delegated_orders import (
+    DelegatedOrderSubmission,
+    CreateDelegatedOrderRequest,
+    CancelResponse,
+)
 from .portfolio import (
     Position,
     HistoryEntry,
@@ -100,6 +121,22 @@ __all__ = [
     "OrderArgs",
     "MakerMatch",
     "OrderResponse",
+    # API-token / partner types
+    "ScopeTrading",
+    "ScopeAccountCreation",
+    "ScopeDelegatedSigning",
+    "HMACCredentials",
+    "ApiTokenProfile",
+    "DeriveApiTokenInput",
+    "DeriveApiTokenResponse",
+    "ApiToken",
+    "PartnerCapabilities",
+    "CreatePartnerAccountInput",
+    "CreatePartnerAccountEOAHeaders",
+    "PartnerAccountResponse",
+    "DelegatedOrderSubmission",
+    "CreateDelegatedOrderRequest",
+    "CancelResponse",
     # Portfolio types
     "Position",
     "HistoryEntry",

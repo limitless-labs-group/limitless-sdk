@@ -9,6 +9,8 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Literal, Optional, TypedDict, Union
 from pydantic import BaseModel, Field
 
+from ..types.api_tokens import HMACCredentials
+
 
 class WebSocketState(str, Enum):
     """WebSocket connection state.
@@ -50,6 +52,7 @@ class WebSocketConfig(BaseModel):
                 Not required for public subscriptions (market prices, orderbook).
                 You can generate an API key at https://limitless.exchange
                 and set LIMITLESS_API_KEY environment variable.
+        hmac_credentials: Scoped HMAC credentials for authenticated subscriptions.
         auto_reconnect: Auto-reconnect on connection loss (default: True)
         reconnect_delay: Reconnection delay in seconds (default: 1.0)
         max_reconnect_attempts: Maximum reconnection attempts (default: None = infinite)
@@ -73,6 +76,7 @@ class WebSocketConfig(BaseModel):
     """
     url: str = Field(default="wss://ws.limitless.exchange")
     api_key: Optional[str] = Field(default_factory=lambda: os.getenv('LIMITLESS_API_KEY'))
+    hmac_credentials: Optional[HMACCredentials] = Field(default=None)
     auto_reconnect: bool = Field(default=True)
     reconnect_delay: float = Field(default=1.0)
     max_reconnect_attempts: Optional[int] = Field(default=None)

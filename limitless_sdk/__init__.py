@@ -22,12 +22,11 @@ from .api import (
     RateLimitError,
     AuthenticationError,
     ValidationError,
+    ConflictError,
     retry_on_errors,
     RetryConfig,
     RetryableClient,
 )
-
-
 
 # Markets module
 from .markets import MarketFetcher
@@ -35,6 +34,11 @@ from .market_pages import MarketPageFetcher
 
 # Portfolio module
 from .portfolio import PortfolioFetcher
+
+# Partner API-token module
+from .api_tokens import ApiTokenService
+from .partner_accounts import PartnerAccountService
+from .delegated_orders import DelegatedOrderService
 
 # Orders module
 from .orders import (
@@ -58,6 +62,9 @@ from .websocket import (
     MarketUpdate,
     PriceUpdate,
 )
+
+# Root client
+from .sdk_client import Client
 
 # Type definitions
 from .types import (
@@ -108,6 +115,22 @@ from .types import (
     OrderArgs,
     MakerMatch,
     OrderResponse,
+    # API-token / partner types
+    ScopeTrading,
+    ScopeAccountCreation,
+    ScopeDelegatedSigning,
+    HMACCredentials,
+    ApiTokenProfile,
+    DeriveApiTokenInput,
+    DeriveApiTokenResponse,
+    ApiToken,
+    PartnerCapabilities,
+    CreatePartnerAccountInput,
+    CreatePartnerAccountEOAHeaders,
+    PartnerAccountResponse,
+    DelegatedOrderSubmission,
+    CreateDelegatedOrderRequest,
+    CancelResponse,
     # Portfolio types
     Position,
     HistoryEntry,
@@ -155,14 +178,21 @@ __all__ = [
     "RateLimitError",
     "AuthenticationError",
     "ValidationError",
+    "ConflictError",
     "retry_on_errors",
     "RetryConfig",
     "RetryableClient",
+    # Root client
+    "Client",
     # Markets module
     "MarketFetcher",
     "MarketPageFetcher",
     # Portfolio module
     "PortfolioFetcher",
+    # Partner API-token module
+    "ApiTokenService",
+    "PartnerAccountService",
+    "DelegatedOrderService",
     # Orders module
     "OrderBuilder",
     "OrderSigner",
@@ -227,6 +257,22 @@ __all__ = [
     "OrderArgs",
     "MakerMatch",
     "OrderResponse",
+    # API-token / partner types
+    "ScopeTrading",
+    "ScopeAccountCreation",
+    "ScopeDelegatedSigning",
+    "HMACCredentials",
+    "ApiTokenProfile",
+    "DeriveApiTokenInput",
+    "DeriveApiTokenResponse",
+    "ApiToken",
+    "PartnerCapabilities",
+    "CreatePartnerAccountInput",
+    "CreatePartnerAccountEOAHeaders",
+    "PartnerAccountResponse",
+    "DelegatedOrderSubmission",
+    "CreateDelegatedOrderRequest",
+    "CancelResponse",
     # Portfolio types
     "Position",
     "HistoryEntry",
