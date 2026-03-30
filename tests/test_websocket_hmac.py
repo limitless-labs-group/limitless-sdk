@@ -12,9 +12,18 @@ class _FakeAsyncClient:
         self.closed = False
         self.connected = True
         self.connect_calls = []
+        self.handlers = {}
 
-    def on(self, *args, **kwargs):
-        return None
+    def on(self, event, handler=None, namespace=None):
+        if handler is not None:
+            self.handlers[(namespace, event)] = handler
+            return handler
+
+        def decorator(func):
+            self.handlers[(namespace, event)] = func
+            return func
+
+        return decorator
 
     async def connect(self, url, headers=None, transports=None, namespaces=None, wait_timeout=None):
         self.connect_calls.append(

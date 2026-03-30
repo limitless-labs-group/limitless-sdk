@@ -126,3 +126,19 @@ async def test_cancel_variants_pass_on_behalf_query_params():
         "/orders/all/bitcoin-2026",
         params={"onBehalfOf": 326},
     )
+
+
+@pytest.mark.asyncio
+async def test_cancel_variants_url_encode_order_id_and_market_slug():
+    http_client = Mock()
+    http_client.require_auth = Mock()
+    http_client.delete = AsyncMock(return_value={"message": "ok"})
+    service = DelegatedOrderService(http_client)
+
+    message = await service.cancel("order/with space")
+    assert message == "ok"
+    http_client.delete.assert_awaited_with("/orders/order%2Fwith%20space")
+
+    message = await service.cancel_all("market/with space")
+    assert message == "ok"
+    http_client.delete.assert_awaited_with("/orders/all/market%2Fwith%20space")

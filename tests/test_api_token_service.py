@@ -98,3 +98,16 @@ async def test_revoke_token_returns_message():
     http_client.require_auth.assert_called_once_with("revoke_token")
     http_client.delete.assert_awaited_once()
     assert message == "Token revoked"
+
+
+@pytest.mark.asyncio
+async def test_revoke_token_url_encodes_special_characters():
+    http_client = Mock()
+    http_client.require_auth = Mock()
+    http_client.delete = AsyncMock(return_value={"message": "Token revoked"})
+
+    service = ApiTokenService(http_client)
+    message = await service.revoke_token("token/with space")
+
+    http_client.delete.assert_awaited_once_with("/auth/api-tokens/token%2Fwith%20space")
+    assert message == "Token revoked"

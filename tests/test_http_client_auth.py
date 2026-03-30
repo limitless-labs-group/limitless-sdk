@@ -102,7 +102,7 @@ async def test_http_client_identity_overrides_hmac_and_api_key():
     client = HttpClient(
         base_url="https://api.limitless.exchange",
         api_key="plain-api-key",
-        hmac_credentials=HMACCredentials(tokenId="token-123", secret="c2VjcmV0"),
+        hmac_credentials=HMACCredentials(token_id="token-123", secret="c2VjcmV0"),
     )
     client._session = session
 
@@ -118,6 +118,30 @@ async def test_http_client_identity_overrides_hmac_and_api_key():
     assert "X-API-Key" not in headers
     assert "lmts-api-key" not in headers
     assert "lmts-signature" not in headers
+
+
+@pytest.mark.asyncio
+async def test_http_client_encodes_special_characters_in_query_params():
+    session = _CapturedSession(_MockResponse(200, {"ok": True}))
+    client = HttpClient(base_url="https://api.limitless.exchange", api_key="plain-api-key")
+    client._session = session
+
+    async def _noop_ensure():
+        return None
+
+    client._ensure_session = _noop_ensure
+
+    await client.get(
+        "/auth/api-tokens",
+        params={"tokenId": "token/with space", "marketSlug": "slug/with space"},
+    )
+
+    method, url, _, _ = session.calls[0]
+    assert method == "GET"
+    assert (
+        url
+        == "https://api.limitless.exchange/auth/api-tokens?tokenId=token%2Fwith+space&marketSlug=slug%2Fwith+space"
+    )
 
 
 @pytest.mark.asyncio
