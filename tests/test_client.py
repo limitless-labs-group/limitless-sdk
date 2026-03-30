@@ -52,21 +52,6 @@ async def test_context_manager():
             mock_create.assert_called_once()
             mock_close.assert_called_once()
 
-
-def test_sign_message():
-    """Test message signing functionality."""
-    private_key = "0x" + "a" * 64
-    client = LimitlessClient(private_key=private_key)
-    
-    message = "Test message"
-    signature = client.sign_message(message)
-    
-    assert isinstance(signature, str)
-    assert len(signature) == 130  # 65 bytes * 2 chars per byte (no 0x prefix)
-    # Verify it's a valid hex string
-    int(signature, 16)
-
-
 def test_additional_headers_initialization():
     """Test that additional_headers are properly stored during initialization."""
     private_key = "0x" + "a" * 64

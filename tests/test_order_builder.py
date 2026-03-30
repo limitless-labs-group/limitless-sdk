@@ -14,7 +14,7 @@ def order_builder() -> OrderBuilder:
 
 
 def test_build_order_rejects_price_that_rounds_to_zero(order_builder: OrderBuilder) -> None:
-    with pytest.raises(ValueError, match="rounds to 0.0"):
+    with pytest.raises(ValueError, match="API supports max 3 decimal places"):
         order_builder.build_order(
             token_id="123",
             price=0.0001,
@@ -33,4 +33,3 @@ def test_build_order_accepts_min_tick_price(order_builder: OrderBuilder) -> None
 
     assert order.price == 0.001
     assert order.maker_amount > 0
-

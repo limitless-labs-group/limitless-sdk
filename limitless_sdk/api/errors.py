@@ -40,6 +40,9 @@ class APIError(Exception):
 
     def __str__(self) -> str:
         """String representation with context."""
+        if not self.method and not self.url:
+            return self.message
+
         parts = []
         if self.method and self.url:
             parts.append(f"{self.method} {self.url}")
