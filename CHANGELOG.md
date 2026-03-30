@@ -55,6 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Partner-account client payloads now validate `displayName` length with the backend's `44` character limit
 - Standard `X-API-Key` auth remains first-class and unchanged for the existing regular trading flow
 - README and examples now document the partner api-token v3 workflow explicitly
+- README and examples now clarify that partner HMAC credentials are intended for backend/BFF usage; browser apps should keep public reads in the frontend and route partner-authenticated actions through their own backend
 
 ## [1.0.3]
 

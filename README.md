@@ -167,6 +167,15 @@ Partner surface added by this flow:
 
 Standard `X-API-Key` authentication remains fully supported for the existing portfolio, market, and regular order flows.
 
+Use partner HMAC credentials only in a backend or BFF service. Do not expose `token_id` / `secret` in browser bundles, frontend environment variables, or client-side storage.
+
+Recommended setup:
+
+- Keep public market and market-page reads in the browser.
+- Store the real HMAC credentials on your backend.
+- Use this SDK server-side to sign partner-authenticated requests.
+- Expose only your own app-specific endpoints to the frontend.
+
 ### Environment Variables
 
 Create a `.env` file in your project root:
