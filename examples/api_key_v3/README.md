@@ -7,6 +7,7 @@ Partner-facing examples for:
 - `DELETE /auth/api-tokens/:tokenId`
 - `POST /profiles/partner-accounts`
 - delegated `POST /orders`
+- delegated `POST /orders` with `FOK`
 - delegated cancel by id / cancel all
 - WebSocket auth with HMAC-scoped tokens
 
@@ -33,6 +34,7 @@ export LIMITLESS_HTTP_TRACE=1
 python examples/api_key_v3/api_tokens.py
 python examples/api_key_v3/partner_account.py
 python examples/api_key_v3/delegated_order.py
+python examples/api_key_v3/delegated_fok_order.py
 python examples/api_key_v3/e2e_flow.py
 python examples/api_key_v3/websocket_hmac.py
 ```

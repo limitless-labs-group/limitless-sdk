@@ -52,7 +52,8 @@ Market-pages navigation API: navigation tree, by-path resolution, markets filter
 Partner-facing API token v3 / HMAC examples:
 - token capabilities / derive / list / revoke
 - partner account creation
-- delegated order create / cancel
+- delegated GTC order create / cancel
+- delegated FOK order placement
 - narrated e2e flow
 - HMAC-authenticated websocket connection
 

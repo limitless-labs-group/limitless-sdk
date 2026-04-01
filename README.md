@@ -13,7 +13,7 @@ A minimalistic, async Python SDK for interacting with the Limitless Exchange API
 - 💼 **Portfolio tracking** - Positions and user history
 - 🔄 **Automatic retries** - Configurable retry logic with error handling
 - 🌐 **WebSocket support** - Real-time orderbook updates
-- 🤝 **Partner account + delegated trading helpers** - Server-wallet child accounts and delegated order create/cancel flows
+- 🤝 **Partner account + delegated trading helpers** - Server-wallet child accounts and delegated GTC/FOK order flows
 - 🛡️ **Custom headers** - Global and per-request header configuration
 - ⚡ **Async/await support** - Modern async Python with aiohttp
 - 🚀 **Venue caching** - Automatic contract address caching for optimized order creation
@@ -337,7 +337,7 @@ if market.neg_risk_request_id:
     w3.eth.send_raw_transaction(signed_tx.raw_transaction)
 ```
 
-For complete examples with proper ABIs and transaction handling, see [examples/00_setup_approvals.py](./examples/00_setup_approvals.py).
+For complete examples with proper ABIs and transaction handling, see [examples/00_setup_approvals.py](https://github.com/limitless-labs-group/limitless-sdk/blob/main/examples/00_setup_approvals.py).
 
 ## Order Management
 
@@ -545,7 +545,7 @@ The SDK uses Pydantic models for type safety:
 
 ## Examples
 
-See the [`examples/`](./examples) directory for complete working examples:
+See the [`examples/`](https://github.com/limitless-labs-group/limitless-sdk/tree/main/examples) directory for complete working examples:
 
 - **`01_authentication.py`** - API key authentication with portfolio data
 - **`02_create_buy_gtc_order.py`** - Create BUY GTC order
@@ -556,6 +556,7 @@ See the [`examples/`](./examples) directory for complete working examples:
 - **`06_retry_handling.py`** - Custom retry logic with `@retry_on_errors`
 - **`07_auto_retry_second_sample.py`** - Auto-retry with `RetryableClient`
 - **`08_websocket_events.py`** - Real-time orderbook updates
+- **`examples/api_key_v3/README.md`** - Partner HMAC examples, including delegated GTC/FOK order flows
 
 ## Development
 
