@@ -303,6 +303,42 @@ class TransactionEvent(TypedDict, total=False):
     side: Optional[Literal["BUY", "SELL"]]
 
 
+class MarketCreatedEvent(TypedDict, total=False):
+    """Market-created lifecycle event.
+
+    Attributes:
+        slug: Market slug identifier
+        title: Human-readable market title
+        type: Market venue type
+        groupSlug: Group market slug when present
+        categoryIds: Category identifiers when present
+        createdAt: Market creation timestamp
+    """
+    slug: str
+    title: str
+    type: Literal["AMM", "CLOB"]
+    groupSlug: Optional[str]
+    categoryIds: Optional[List[int]]
+    createdAt: Union[str, int, Any]
+
+
+class MarketResolvedEvent(TypedDict):
+    """Market-resolved lifecycle event.
+
+    Attributes:
+        slug: Market slug identifier
+        type: Market venue type
+        winningOutcome: Winning outcome label
+        winningIndex: Winning outcome index
+        resolutionDate: Market resolution timestamp
+    """
+    slug: str
+    type: Literal["AMM", "CLOB"]
+    winningOutcome: Literal["YES", "NO"]
+    winningIndex: Literal[0, 1]
+    resolutionDate: Union[str, int, Any]
+
+
 # Event handler type definitions
 ConnectHandler = Callable[[], None]
 DisconnectHandler = Callable[[str], None]
@@ -316,6 +352,8 @@ MarketHandler = Callable[[MarketUpdate], None]
 PriceHandler = Callable[[PriceUpdate], None]
 NewPriceDataHandler = Callable[[NewPriceData], None]
 TransactionHandler = Callable[[TransactionEvent], None]
+MarketCreatedHandler = Callable[[MarketCreatedEvent], None]
+MarketResolvedHandler = Callable[[MarketResolvedEvent], None]
 
 
 class WebSocketEvents(TypedDict, total=False):
@@ -341,6 +379,8 @@ class WebSocketEvents(TypedDict, total=False):
     order: OrderHandler
     fill: FillHandler
     market: MarketHandler
+    marketCreated: MarketCreatedHandler
+    marketResolved: MarketResolvedHandler
     price: PriceHandler  # Deprecated - use newPriceData
     positions: Any  # Position update handler
     tx: TransactionHandler
