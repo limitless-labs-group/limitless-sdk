@@ -70,9 +70,36 @@ async def test_websocket_connect_uses_hmac_headers(monkeypatch):
 
     assert client.state == WebSocketState.CONNECTED
     headers = fake_client.connect_calls[0]["headers"]
+    assert headers["x-sdk-version"].startswith("lmts-sdk-py/")
+    assert headers["user-agent"].startswith("lmts-sdk-py/")
+    assert "python/" in headers["user-agent"]
     assert headers["lmts-api-key"] == "token-123"
     assert "lmts-signature" in headers
     assert "X-API-Key" not in headers
+
+
+@pytest.mark.asyncio
+async def test_websocket_connect_uses_sdk_tracking_headers_without_auth(monkeypatch):
+    fake_client = _FakeAsyncClient()
+
+    monkeypatch.setattr(
+        "limitless_sdk.websocket.client.AsyncClient",
+        lambda *args, **kwargs: fake_client,
+    )
+
+    client = WebSocketClient(
+        WebSocketConfig(
+            auto_reconnect=False,
+        )
+    )
+
+    await client.connect()
+
+    assert client.state == WebSocketState.CONNECTED
+    headers = fake_client.connect_calls[0]["headers"]
+    assert headers["x-sdk-version"].startswith("lmts-sdk-py/")
+    assert headers["user-agent"].startswith("lmts-sdk-py/")
+    assert "python/" in headers["user-agent"]
 
 
 @pytest.mark.asyncio

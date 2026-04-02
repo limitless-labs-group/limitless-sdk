@@ -2,10 +2,8 @@
 
 import json
 import os
-import platform
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from importlib.metadata import PackageNotFoundError, version
 from typing import Any, Dict, Optional, Set, Tuple
 from urllib.parse import urlencode
 
@@ -19,13 +17,13 @@ from .errors import (
     ValidationError,
 )
 from .hmac import compute_hmac_signature
+from .._sdk_tracking import _build_sdk_tracking_headers
 from ..types.api_tokens import HMACCredentials
 from ..types.logger import ILogger, NoOpLogger
 
 
 DEFAULT_API_URL = "https://api.limitless.exchange"
 DEFAULT_TIMEOUT = 30
-SDK_ID = "lmts-sdk-py"
 _AUTH_OVERRIDE_HEADERS = {
     "authorization",
     "cookie",
@@ -44,21 +42,6 @@ _REDACTED_HEADERS = {
     "lmts-timestamp",
     "x-api-key",
 }
-
-
-def _resolve_sdk_version() -> str:
-    try:
-        return version("limitless-sdk")
-    except PackageNotFoundError:
-        return "0.0.0"
-
-
-def _build_sdk_tracking_headers() -> Dict[str, str]:
-    sdk_version = _resolve_sdk_version()
-    return {
-        "user-agent": f"{SDK_ID}/{sdk_version} (python/{platform.python_version()})",
-        "x-sdk-version": f"{SDK_ID}/{sdk_version}",
-    }
 
 
 def _build_iso_timestamp() -> str:

@@ -17,6 +17,7 @@ from typing import Any, Callable, Dict, List, Optional, Set
 from socketio import AsyncClient
 from socketio.exceptions import ConnectionError as SocketIOConnectionError
 
+from .._sdk_tracking import _build_sdk_tracking_headers
 from ..api.hmac import compute_hmac_signature
 from ..types.logger import ILogger, NoOpLogger
 from ..types.api_tokens import HMACCredentials
@@ -221,10 +222,10 @@ class WebSocketClient:
                 # Prepare connection URL (use base URL, namespace handled by Socket.IO)
                 ws_url = self._config.url
 
-                headers = {}
+                headers = _build_sdk_tracking_headers()
                 if self._config.hmac_credentials:
                     timestamp = _build_iso_timestamp()
-                    headers = {
+                    headers.update({
                         "lmts-api-key": self._config.hmac_credentials.token_id,
                         "lmts-timestamp": timestamp,
                         "lmts-signature": compute_hmac_signature(
@@ -234,7 +235,7 @@ class WebSocketClient:
                             "/socket.io/?EIO=4&transport=websocket",
                             "",
                         ),
-                    }
+                    })
                 elif self._config.api_key:
                     headers['X-API-Key'] = self._config.api_key
 

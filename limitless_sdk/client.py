@@ -5,14 +5,13 @@ import logging
 import math
 import time
 import os
-import platform
 from functools import wraps
 from typing import Dict, List, Optional, Union, Any
-from importlib.metadata import PackageNotFoundError, version
 
 import aiohttp
 from eth_account import Account
 
+from ._sdk_tracking import _build_sdk_tracking_headers
 from .exceptions import LimitlessAPIError, RateLimitError, AuthenticationError
 from .models import (
     CreateOrderDto,
@@ -22,22 +21,6 @@ from .models import (
 )
 
 logger = logging.getLogger(__name__)
-SDK_ID = "lmts-sdk-py"
-
-
-def _resolve_sdk_version() -> str:
-    try:
-        return version("limitless-sdk")
-    except PackageNotFoundError:
-        return "0.0.0"
-
-
-def _build_sdk_tracking_headers() -> Dict[str, str]:
-    sdk_version = _resolve_sdk_version()
-    return {
-        "user-agent": f"{SDK_ID}/{sdk_version} (python/{platform.python_version()})",
-        "x-sdk-version": f"{SDK_ID}/{sdk_version}",
-    }
 
 
 def retry_on_rate_limit(max_retries: int = 2, delays: List[int] = None):
