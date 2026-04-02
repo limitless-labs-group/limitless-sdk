@@ -1,8 +1,90 @@
 """Order-related type definitions."""
 
 from enum import Enum, IntEnum
+from decimal import Decimal, InvalidOperation
+import math
+import re
 from typing import List, Optional, Literal
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
+
+
+_INTEGER_STRING_RE = re.compile(r"^[+-]?\d+$")
+_IEEE754_SAFE_INTEGER_MAX = 2**53 - 1
+
+
+def _parse_integer_like(value: object) -> int:
+    """Parse integer-like API values (int/float-integer/numeric-string) strictly."""
+    if isinstance(value, bool):
+        raise ValueError("value must be an integer or numeric string")
+
+    if isinstance(value, int):
+        return value
+
+    if isinstance(value, float):
+        if (
+            math.isfinite(value)
+            and value.is_integer()
+            and abs(value) <= _IEEE754_SAFE_INTEGER_MAX
+        ):
+            return int(value)
+        raise ValueError(
+            "value must be a finite integer within IEEE-754 safe range"
+        )
+
+    if isinstance(value, str):
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("value cannot be an empty string")
+        if not _INTEGER_STRING_RE.fullmatch(trimmed):
+            raise ValueError(f"invalid integer string: {value!r}")
+        return int(trimmed)
+
+    raise ValueError("value must be an integer or numeric string")
+
+
+def _parse_number_like(value: object) -> Optional[float]:
+    """Parse number-like API values (number/numeric-string), preserving None."""
+    if value is None:
+        return None
+
+    if isinstance(value, bool):
+        raise ValueError("value must be a finite number or numeric string")
+
+    if isinstance(value, int):
+        try:
+            number = float(value)
+        except OverflowError as exc:
+            raise ValueError("value is out of float range") from exc
+    elif isinstance(value, float):
+        number = value
+    elif isinstance(value, str):
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("value cannot be an empty string")
+        try:
+            parsed_decimal = Decimal(trimmed)
+        except InvalidOperation as exc:
+            raise ValueError(f"invalid numeric string: {value!r}") from exc
+
+        if not parsed_decimal.is_finite():
+            raise ValueError("value must be finite")
+
+        if (
+            parsed_decimal == parsed_decimal.to_integral_value()
+            and abs(int(parsed_decimal)) > _IEEE754_SAFE_INTEGER_MAX
+        ):
+            raise ValueError(
+                "integer-like numeric string exceeds IEEE-754 safe integer range"
+            )
+
+        number = float(parsed_decimal)
+    else:
+        raise ValueError("value must be a finite number or numeric string")
+
+    if not math.isfinite(number):
+        raise ValueError("value must be finite")
+
+    return number
 
 
 class Side(IntEnum):
@@ -81,6 +163,16 @@ class UnsignedOrder(BaseModel):
     price: Optional[float] = None  # Required for GTC orders, NOT part of EIP-712 signature
 
     model_config = ConfigDict(populate_by_name=True)
+
+    @field_validator("salt", "maker_amount", "taker_amount", mode="before")
+    @classmethod
+    def _parse_integer_payload_fields(cls, value: object) -> int:
+        return _parse_integer_like(value)
+
+    @field_validator("price", mode="before")
+    @classmethod
+    def _parse_price_payload_field(cls, value: object) -> Optional[float]:
+        return _parse_number_like(value)
 
 
 class SignedOrder(UnsignedOrder):

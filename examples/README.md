@@ -9,6 +9,7 @@ pip install limitless-sdk
 export LIMITLESS_API_KEY="sk_live_..."  # For authenticated endpoints
 export PRIVATE_KEY="0x..."              # For order signing (EIP-712)
 export MARKET_SLUG="your-market-slug"   # For order examples
+export LIMITLESS_IDENTITY_TOKEN="..."   # For partner api-token v3 examples
 ```
 
 ## Examples
@@ -46,6 +47,15 @@ Real-time orderbook updates via WebSocket subscription.
 
 ### [09_market_pages_navigation.py](./09_market_pages_navigation.py)
 Market-pages navigation API: navigation tree, by-path resolution, markets filters, cursor/offset pagination, property keys.
+
+### [api_key_v3/](./api_key_v3/README.md)
+Partner-facing API token v3 / HMAC examples:
+- token capabilities / derive / list / revoke
+- partner account creation
+- delegated GTC order create / cancel
+- delegated FOK order placement
+- narrated e2e flow
+- HMAC-authenticated websocket connection
 
 ## Key Concepts
 

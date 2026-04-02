@@ -6,6 +6,7 @@ from .errors import (
     RateLimitError,
     AuthenticationError,
     ValidationError,
+    ConflictError,
 )
 from .retry import (
     retry_on_errors,
@@ -20,6 +21,7 @@ __all__ = [
     "RateLimitError",
     "AuthenticationError",
     "ValidationError",
+    "ConflictError",
     "retry_on_errors",
     "RetryConfig",
     "RetryableClient",

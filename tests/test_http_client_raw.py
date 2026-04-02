@@ -38,6 +38,34 @@ class _MockSession:
         return _MockResponseContext(self._response)
 
 
+
+
+@pytest.mark.asyncio
+async def test_http_client_initializes_sdk_tracking_headers(monkeypatch):
+    captured = {}
+
+    class _DummySession:
+        closed = False
+
+        async def close(self):
+            self.closed = True
+
+    def _fake_client_session(*args, **kwargs):
+        captured.update(kwargs)
+        return _DummySession()
+
+    monkeypatch.setattr("aiohttp.ClientSession", _fake_client_session)
+
+    client = HttpClient(base_url="https://api.limitless.exchange", api_key="test-key")
+    await client._ensure_session()
+
+    headers = captured["headers"]
+    assert "user-agent" in headers
+    assert headers["user-agent"].startswith("lmts-sdk-py/")
+    assert "python/" in headers["user-agent"]
+    assert "x-sdk-version" in headers
+    assert headers["x-sdk-version"].startswith("lmts-sdk-py/")
+
 @pytest.mark.asyncio
 async def test_get_raw_does_not_whitelist_http_errors_with_accepted_statuses():
     client = HttpClient(base_url="https://api.limitless.exchange", api_key="test-key")

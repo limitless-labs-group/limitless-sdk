@@ -10,8 +10,8 @@ from typing import Dict, List, Optional, Union, Any
 
 import aiohttp
 from eth_account import Account
-from eth_account.messages import encode_defunct
 
+from ._sdk_tracking import _build_sdk_tracking_headers
 from .exceptions import LimitlessAPIError, RateLimitError, AuthenticationError
 from .models import (
     CreateOrderDto,
@@ -128,6 +128,7 @@ class LimitlessClient:
         """Create an aiohttp session with API key authentication."""
         if self.session is None or self.session.closed:
             headers = {
+                **_build_sdk_tracking_headers(),
                 "Content-Type": "application/json",
             }
 
@@ -644,7 +645,9 @@ class LimitlessClient:
         # For DELETE requests, we need to avoid sending Content-Type header
         # Create a new request without the default session headers
         # but include additional headers (like X-API-Key, rate limiting bypass)
-        delete_headers = self.additional_headers.copy() if self.additional_headers else {}
+        delete_headers = _build_sdk_tracking_headers()
+        if self.additional_headers:
+            delete_headers.update(self.additional_headers)
 
         # Add X-API-Key header for authentication
         if self.api_key:

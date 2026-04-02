@@ -12,12 +12,15 @@ Performance optimizations:
 """
 
 import asyncio
-import secrets
+from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Set
 from socketio import AsyncClient
 from socketio.exceptions import ConnectionError as SocketIOConnectionError
 
+from .._sdk_tracking import _build_sdk_tracking_headers
+from ..api.hmac import compute_hmac_signature
 from ..types.logger import ILogger, NoOpLogger
+from ..types.api_tokens import HMACCredentials
 from .types import (
     WebSocketState,
     WebSocketConfig,
@@ -36,6 +39,14 @@ DEFAULT_WS_URL = "wss://ws.limitless.exchange"
 DEFAULT_NAMESPACE = "/markets"
 
 
+def _build_iso_timestamp() -> str:
+    return (
+        datetime.now(timezone.utc)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
+
+
 class WebSocketClient:
     """WebSocket client for real-time data streaming from Limitless Exchange.
 
@@ -46,7 +57,7 @@ class WebSocketClient:
     - Market prices (AMM)
     - Orderbook updates (CLOB)
 
-    Authenticated Subscriptions (require API key):
+    Authenticated Subscriptions (require API key or HMAC credentials):
     - User positions
     - User transactions
 
@@ -68,7 +79,7 @@ class WebSocketClient:
         >>> await client.connect()
         >>> await client.subscribe('subscribe_market_prices', {'marketSlugs': ['market-123']})
         >>>
-        >>> # Authenticated subscription (API key required)
+        >>> # Authenticated subscription (API key or HMAC credentials required)
         >>> import os
         >>> client_auth = WebSocketClient(
         ...     WebSocketConfig(
@@ -147,6 +158,22 @@ class WebSocketClient:
             self._logger.info("API key updated, reconnecting...")
             asyncio.create_task(self._reconnect_with_new_auth())
 
+    def set_hmac_credentials(self, hmac_credentials: HMACCredentials) -> None:
+        """Set HMAC credentials for authenticated subscriptions."""
+        self._config.hmac_credentials = hmac_credentials.model_copy()
+
+        if self.is_connected():
+            self._logger.info("HMAC credentials updated, reconnecting...")
+            asyncio.create_task(self._reconnect_with_new_auth())
+
+    def clear_hmac_credentials(self) -> None:
+        """Clear HMAC credentials."""
+        self._config.hmac_credentials = None
+
+        if self.is_connected():
+            self._logger.info("HMAC credentials cleared, reconnecting...")
+            asyncio.create_task(self._reconnect_with_new_auth())
+
     async def _reconnect_with_new_auth(self) -> None:
         """Reconnect with new authentication credentials."""
         await self.disconnect()
@@ -195,11 +222,21 @@ class WebSocketClient:
                 # Prepare connection URL (use base URL, namespace handled by Socket.IO)
                 ws_url = self._config.url
 
-                # Prepare headers with API key
-                # API key is sent via X-API-Key header for authenticated subscriptions
-                headers = {}
-                if self._config.api_key:
-                    # Required for authenticated subscriptions (positions, transactions)
+                headers = _build_sdk_tracking_headers()
+                if self._config.hmac_credentials:
+                    timestamp = _build_iso_timestamp()
+                    headers.update({
+                        "lmts-api-key": self._config.hmac_credentials.token_id,
+                        "lmts-timestamp": timestamp,
+                        "lmts-signature": compute_hmac_signature(
+                            self._config.hmac_credentials.secret,
+                            timestamp,
+                            "GET",
+                            "/socket.io/?EIO=4&transport=websocket",
+                            "",
+                        ),
+                    })
+                elif self._config.api_key:
                     headers['X-API-Key'] = self._config.api_key
 
                 # Connect with timeout to /markets namespace
@@ -313,13 +350,16 @@ class WebSocketClient:
         if not self.is_connected():
             raise ConnectionError("WebSocket not connected. Call connect() first.")
 
-        # Check if API key is required for authenticated channels
+        # Check if authentication is required for authenticated channels
         authenticated_channels = ['subscribe_positions', 'subscribe_transactions']
-        if channel in authenticated_channels and not self._config.api_key:
+        if (
+            channel in authenticated_channels
+            and not self._config.api_key
+            and not self._config.hmac_credentials
+        ):
             raise ValueError(
-                f"API key is required for '{channel}' subscription. "
-                "Please provide an API key in the constructor or set LIMITLESS_API_KEY environment variable. "
-                "You can generate an API key at https://limitless.exchange"
+                f"Authentication is required for '{channel}' subscription. "
+                "Please provide either an API key or HMAC credentials."
             )
 
         if options is None:

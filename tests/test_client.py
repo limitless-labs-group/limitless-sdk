@@ -52,21 +52,6 @@ async def test_context_manager():
             mock_create.assert_called_once()
             mock_close.assert_called_once()
 
-
-def test_sign_message():
-    """Test message signing functionality."""
-    private_key = "0x" + "a" * 64
-    client = LimitlessClient(private_key=private_key)
-    
-    message = "Test message"
-    signature = client.sign_message(message)
-    
-    assert isinstance(signature, str)
-    assert len(signature) == 130  # 65 bytes * 2 chars per byte (no 0x prefix)
-    # Verify it's a valid hex string
-    int(signature, 16)
-
-
 def test_additional_headers_initialization():
     """Test that additional_headers are properly stored during initialization."""
     private_key = "0x" + "a" * 64
@@ -101,6 +86,9 @@ async def test_additional_headers_in_session():
         
         # Check that default headers are present
         assert headers['Content-Type'] == 'application/json'
+        assert headers['user-agent'].startswith('lmts-sdk-py/')
+        assert 'python/' in headers['user-agent']
+        assert headers['x-sdk-version'].startswith('lmts-sdk-py/')
         
         # Check that additional headers are present
         assert headers['x-secret-bypass'] == 'secret-token'

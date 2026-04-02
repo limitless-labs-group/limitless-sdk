@@ -44,6 +44,8 @@ from .types import (
     AmmPriceEntry,
     NewPriceData,
     TransactionEvent,
+    MarketCreatedEvent,
+    MarketResolvedEvent,
     WebSocketEvents,
     # Handler types
     ConnectHandler,
@@ -58,6 +60,8 @@ from .types import (
     PriceHandler,
     NewPriceDataHandler,
     TransactionHandler,
+    MarketCreatedHandler,
+    MarketResolvedHandler,
 )
 
 __all__ = [
@@ -81,6 +85,8 @@ __all__ = [
     "AmmPriceEntry",
     "NewPriceData",
     "TransactionEvent",
+    "MarketCreatedEvent",
+    "MarketResolvedEvent",
     "WebSocketEvents",
     # Handler types
     "ConnectHandler",
@@ -95,4 +101,6 @@ __all__ = [
     "PriceHandler",
     "NewPriceDataHandler",
     "TransactionHandler",
+    "MarketCreatedHandler",
+    "MarketResolvedHandler",
 ]

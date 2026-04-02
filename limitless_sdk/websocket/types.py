@@ -9,6 +9,8 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Literal, Optional, TypedDict, Union
 from pydantic import BaseModel, Field
 
+from ..types.api_tokens import HMACCredentials
+
 
 class WebSocketState(str, Enum):
     """WebSocket connection state.
@@ -50,6 +52,7 @@ class WebSocketConfig(BaseModel):
                 Not required for public subscriptions (market prices, orderbook).
                 You can generate an API key at https://limitless.exchange
                 and set LIMITLESS_API_KEY environment variable.
+        hmac_credentials: Scoped HMAC credentials for authenticated subscriptions.
         auto_reconnect: Auto-reconnect on connection loss (default: True)
         reconnect_delay: Reconnection delay in seconds (default: 1.0)
         max_reconnect_attempts: Maximum reconnection attempts (default: None = infinite)
@@ -73,6 +76,7 @@ class WebSocketConfig(BaseModel):
     """
     url: str = Field(default="wss://ws.limitless.exchange")
     api_key: Optional[str] = Field(default_factory=lambda: os.getenv('LIMITLESS_API_KEY'))
+    hmac_credentials: Optional[HMACCredentials] = Field(default=None)
     auto_reconnect: bool = Field(default=True)
     reconnect_delay: float = Field(default=1.0)
     max_reconnect_attempts: Optional[int] = Field(default=None)
@@ -299,6 +303,42 @@ class TransactionEvent(TypedDict, total=False):
     side: Optional[Literal["BUY", "SELL"]]
 
 
+class MarketCreatedEvent(TypedDict, total=False):
+    """Market-created lifecycle event.
+
+    Attributes:
+        slug: Market slug identifier
+        title: Human-readable market title
+        type: Market venue type
+        groupSlug: Group market slug when present
+        categoryIds: Category identifiers when present
+        createdAt: Market creation timestamp
+    """
+    slug: str
+    title: str
+    type: Literal["AMM", "CLOB"]
+    groupSlug: Optional[str]
+    categoryIds: Optional[List[int]]
+    createdAt: Union[str, int, Any]
+
+
+class MarketResolvedEvent(TypedDict):
+    """Market-resolved lifecycle event.
+
+    Attributes:
+        slug: Market slug identifier
+        type: Market venue type
+        winningOutcome: Winning outcome label
+        winningIndex: Winning outcome index
+        resolutionDate: Market resolution timestamp
+    """
+    slug: str
+    type: Literal["AMM", "CLOB"]
+    winningOutcome: Literal["YES", "NO"]
+    winningIndex: Literal[0, 1]
+    resolutionDate: Union[str, int, Any]
+
+
 # Event handler type definitions
 ConnectHandler = Callable[[], None]
 DisconnectHandler = Callable[[str], None]
@@ -312,6 +352,8 @@ MarketHandler = Callable[[MarketUpdate], None]
 PriceHandler = Callable[[PriceUpdate], None]
 NewPriceDataHandler = Callable[[NewPriceData], None]
 TransactionHandler = Callable[[TransactionEvent], None]
+MarketCreatedHandler = Callable[[MarketCreatedEvent], None]
+MarketResolvedHandler = Callable[[MarketResolvedEvent], None]
 
 
 class WebSocketEvents(TypedDict, total=False):
@@ -337,6 +379,8 @@ class WebSocketEvents(TypedDict, total=False):
     order: OrderHandler
     fill: FillHandler
     market: MarketHandler
+    marketCreated: MarketCreatedHandler
+    marketResolved: MarketResolvedHandler
     price: PriceHandler  # Deprecated - use newPriceData
     positions: Any  # Position update handler
     tx: TransactionHandler
