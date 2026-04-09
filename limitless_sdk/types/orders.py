@@ -105,12 +105,14 @@ class OrderType(Enum):
     Attributes:
         GTC: Good Till Cancelled
         FOK: Fill Or Kill
+        FAK: Fill And Kill (limit-like; unmatched remainder is killed)
         LIMIT: Limit order
         MARKET: Market order
     """
 
     GTC = "GTC"
     FOK = "FOK"
+    FAK = "FAK"
     LIMIT = "LIMIT"
     MARKET = "MARKET"
 

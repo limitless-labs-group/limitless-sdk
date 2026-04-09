@@ -65,7 +65,9 @@ class DelegatedOrderService:
             )
         else:
             if price is None or size is None:
-                raise ValueError("GTC orders require price and size")
+                raise ValueError(
+                    f"{order_type.value} orders require price and size"
+                )
             unsigned_order = builder.build_order(
                 token_id=token_id,
                 price=price,
@@ -87,7 +89,7 @@ class DelegatedOrderService:
             market_slug=market_slug,
             owner_id=on_behalf_of,
             on_behalf_of=on_behalf_of,
-            post_only=post_only if order_type != OrderType.FOK else None,
+            post_only=post_only if order_type == OrderType.GTC else None,
         )
 
         self._logger.debug(
