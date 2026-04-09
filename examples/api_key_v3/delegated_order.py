@@ -67,6 +67,7 @@ async def main() -> None:
             on_behalf_of=account.profile_id,
             price=float(os.getenv("LIMITLESS_DELEGATED_ORDER_PRICE", "0.05")),
             size=float(os.getenv("LIMITLESS_DELEGATED_ORDER_SIZE", "1")),
+            post_only=True,
         )
         print(f"Created delegated order: {response.order.id}")
 

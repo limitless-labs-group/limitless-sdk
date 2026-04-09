@@ -8,12 +8,12 @@ A minimalistic, async Python SDK for interacting with the Limitless Exchange API
 - 🔏 **HMAC-scoped partner authentication** - Derived api-token v3 support for partner workflows
 - 📈 **Market data access** - Markets, orderbooks, and historical data
 - 🧭 **Market pages navigation** - Navigation tree, dynamic filters, property keys
-- 📋 **Order management** - GTC and FOK orders with automatic signing
+- 📋 **Order management** - GTC, FAK, and FOK orders with automatic signing
 - 🔢 **IEEE-safe order payload parsing** - `create_order()` handles `makerAmount`, `takerAmount`, `price`, and `salt` returned as numeric strings
 - 💼 **Portfolio tracking** - Positions and user history
 - 🔄 **Automatic retries** - Configurable retry logic with error handling
 - 🌐 **WebSocket support** - Real-time orderbook updates
-- 🤝 **Partner account + delegated trading helpers** - Server-wallet child accounts and delegated GTC/FOK order flows
+- 🤝 **Partner account + delegated trading helpers** - Server-wallet child accounts and delegated GTC/FAK/FOK order flows
 - 🛡️ **Custom headers** - Global and per-request header configuration
 - ⚡ **Async/await support** - Modern async Python with aiohttp
 - 🚀 **Venue caching** - Automatic contract address caching for optimized order creation
@@ -341,9 +341,10 @@ For complete examples with proper ABIs and transaction handling, see [examples/0
 
 ## Order Management
 
-The SDK supports two order types:
+The SDK supports three order types:
 
 - **GTC (Good-Till-Cancelled)**: Uses `price` + `size` parameters
+- **FAK (Fill-And-Kill)**: Uses `price` + `size` and cancels any unmatched remainder
 - **FOK (Fill-Or-Kill)**: Uses `maker_amount` (total USDC to spend/receive)
 
 ### Create GTC Orders
@@ -368,11 +369,33 @@ order = await order_client.create_order(
     size=5.0,        # Number of shares
     side=Side.BUY,
     order_type=OrderType.GTC,
-    market_slug=market.slug
+    market_slug=market.slug,
+    post_only=True,  # Optional. Supported only for GTC orders
 )
 
 print(f"Order ID: {order.order.id}")
 print(f"Status: {order.order.status}")
+```
+
+### Create FAK Orders
+
+FAK (Fill-And-Kill) orders use the same `price`/`size` construction as `GTC`, but any unmatched remainder is cancelled immediately instead of resting on the orderbook.
+
+```python
+# FAK BUY order - fill up to 5 shares at the limit price, cancel remainder
+order = await order_client.create_order(
+    token_id=token_id,
+    price=0.45,
+    size=5.0,
+    side=Side.BUY,
+    order_type=OrderType.FAK,
+    market_slug=market.slug
+)
+
+if order.maker_matches:
+    print(f"Immediate matches: {len(order.maker_matches)}")
+else:
+    print("No immediate match. Remaining size was cancelled.")
 ```
 
 ### Create FOK Orders
@@ -539,7 +562,7 @@ The SDK uses Pydantic models for type safety:
 
 - **`UserProfile`**: User account information
 - **`Side`**: `BUY` / `SELL` enum
-- **`OrderType`**: `GTC` / `FOK` enum
+- **`OrderType`**: `GTC` / `FAK` / `FOK` enum
 - **`LogLevel`**: `DEBUG` / `INFO` / `WARN` / `ERROR` enum
 - **`Market`**: Market metadata and configuration
 
@@ -553,10 +576,11 @@ See the [`examples/`](https://github.com/limitless-labs-group/limitless-sdk/tree
 - **`04_create_sell_gtc_order.py`** - Create SELL GTC order
 - **`05_create_buy_fok_order.py`** - Create BUY FOK order
 - **`06_create_sell_fok_order.py`** - Create SELL FOK order
+- **`10_create_buy_fak_order.py`** - Create BUY FAK order
 - **`06_retry_handling.py`** - Custom retry logic with `@retry_on_errors`
 - **`07_auto_retry_second_sample.py`** - Auto-retry with `RetryableClient`
 - **`08_websocket_events.py`** - Real-time orderbook updates
-- **`examples/api_key_v3/README.md`** - Partner HMAC examples, including delegated GTC/FOK order flows
+- **`examples/api_key_v3/README.md`** - Partner HMAC examples, including delegated GTC/FAK/FOK order flows
 
 ## Development
 
@@ -694,6 +718,13 @@ points = positions['accumulativePoints']
   size=5.0     # Number of shares to buy/sell
   ```
 
+- **FAK orders**: Use `price` + `size` parameters and cancel any unfilled remainder
+
+  ```python
+  price=0.45,  # Limit price
+  size=5.0     # Shares to fill immediately if available
+  ```
+
 - **FOK orders**: Use `maker_amount` parameter (semantics differ by side)
 
   ```python
@@ -735,6 +766,8 @@ This is the first stable, production-ready release of the Limitless Exchange Pyt
 
   - `OrderClient` for comprehensive order operations
   - **GTC Orders** (Good-Till-Cancelled): `price` + `size` parameters
+    - Optional `post_only=True` rejects the order if it would match immediately
+  - **FAK Orders** (Fill-And-Kill): `price` + `size` parameters, remainder cancelled
   - **FOK Orders** (Fill-Or-Kill): `maker_amount` parameter
     - BUY: maker_amount = total USDC to spend
     - SELL: maker_amount = number of shares to sell
@@ -793,7 +826,7 @@ This is the first stable, production-ready release of the Limitless Exchange Pyt
 #### Documentation & Examples
 
 - **Comprehensive README**: 650+ lines covering all features
-- **9 Working Examples**:
+- **11 Working Examples**:
 
   1. `00_setup_approvals.py` - Token approval setup
   2. `01_authentication.py` - API key authentication with portfolio data
@@ -802,13 +835,15 @@ This is the first stable, production-ready release of the Limitless Exchange Pyt
   5. `04_create_sell_gtc_order.py` - GTC SELL orders
   6. `05_create_buy_fok_order.py` - FOK BUY orders
   7. `06_create_sell_fok_order.py` - FOK SELL orders
-  8. `06_retry_handling.py` - Custom retry logic
-  9. `07_auto_retry_second_sample.py` - Auto-retry patterns with RetryableClient
-  10. `08_websocket_events.py` - Real-time WebSocket events
+  8. `10_create_buy_fak_order.py` - FAK BUY orders
+  9. `06_retry_handling.py` - Custom retry logic
+  10. `07_auto_retry_second_sample.py` - Auto-retry patterns with RetryableClient
+  11. `08_websocket_events.py` - Real-time WebSocket events
 
 - **Documentation Quality Improvements**:
   - Accurate FOK order parameter documentation (BUY vs SELL semantics)
-  - Clear GTC order price parameter explanations
+  - Clear GTC order price parameter explanations and `post_only` usage
+  - FAK order examples and semantics documentation
   - Comprehensive venue system documentation
   - Token approval requirements by market type
   - Best practices for venue caching and performance
@@ -868,7 +903,7 @@ The following versions were development releases leading to v1.0.0:
 - API key authentication with X-API-Key header
 - EIP-712 signing for order creation
 - Market data access
-- GTC and FOK order support
+- GTC, FAK, and FOK order support
 - Portfolio tracking
 
 ---

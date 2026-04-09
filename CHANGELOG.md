@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.5]
+
+### Added
+
+- `FAK` (Fill-And-Kill) limit-order support alongside existing `GTC` and `FOK` flows.
+- `post_only` support for `GTC` orders in the Python client payload surface.
+- New public examples and README coverage for:
+  - `FAK` limit-order placement
+  - `GTC` `post_only` usage
+
+### Changed
+
+- README/examples now document `post_only` as `GTC`-only and omit it for `FAK` / `FOK`.
+- Package metadata now targets `v1.0.5`.
+
 ## [1.0.4]
 
 ### Added
