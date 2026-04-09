@@ -215,12 +215,15 @@ class CreateOrderDto(BaseModel):
         owner_id: Owner ID (from user profile)
         order_type: Order type (GTC, FOK, etc.)
         market_slug: Market slug identifier
+        post_only: Optional. When true, rejects the order if it would immediately match.
+            Supported only for GTC orders. Defaults to false when omitted.
     """
 
     order: SignedOrder
     owner_id: int = Field(alias="ownerId")
     order_type: str = Field(alias="orderType")
     market_slug: str = Field(alias="marketSlug")
+    post_only: Optional[bool] = Field(None, alias="postOnly")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -293,6 +296,8 @@ class OrderArgs(BaseModel):
         side: Order side (BUY or SELL)
         expiration: Optional expiration timestamp
         taker: Optional taker address
+        post_only: Optional. When true, rejects the order if it would immediately match.
+            Supported only for GTC orders. Defaults to false when omitted.
 
     Example:
         >>> from limitless_sdk.types import OrderArgs, Side
@@ -310,6 +315,7 @@ class OrderArgs(BaseModel):
     side: Side
     expiration: Optional[int] = None
     taker: Optional[str] = None
+    post_only: Optional[bool] = None
 
 
 class MakerMatch(BaseModel):

@@ -185,6 +185,7 @@ class OrderClient:
         maker_amount: Optional[float] = None,
         expiration: Optional[int] = None,
         taker: Optional[str] = None,
+        post_only: Optional[bool] = None,
     ) -> OrderResponse:
         """Create and submit a new order.
 
@@ -207,6 +208,8 @@ class OrderClient:
             maker_amount: Maker amount - for FOK orders (BUY: USDC to spend, SELL: shares to sell)
             expiration: Optional expiration timestamp
             taker: Optional taker address
+            post_only: Optional. When true, rejects the order if it would immediately match.
+                Supported only for GTC orders. Defaults to false when omitted.
 
         Returns:
             OrderResponse with order details and maker matches
@@ -349,8 +352,9 @@ class OrderClient:
             owner_id=user_data.user_id,
             order_type=order_type.value,
             market_slug=market_slug,
+            post_only=post_only if not is_fok else None,
         )
-        payload_dict = payload.model_dump(by_alias=True)
+        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         self._logger.debug("Submitting order to API", {
             "payload": payload_dict,
             "order_type": order_type.value,

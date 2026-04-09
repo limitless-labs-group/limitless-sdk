@@ -38,6 +38,7 @@ class DelegatedOrderService:
         expiration: Optional[int] = None,
         taker: Optional[str] = None,
         fee_rate_bps: Optional[int] = None,
+        post_only: Optional[bool] = None,
     ) -> OrderResponse:
         self._http_client.require_auth("create_delegated_order")
 
@@ -86,6 +87,7 @@ class DelegatedOrderService:
             market_slug=market_slug,
             owner_id=on_behalf_of,
             on_behalf_of=on_behalf_of,
+            post_only=post_only if order_type != OrderType.FOK else None,
         )
 
         self._logger.debug(
