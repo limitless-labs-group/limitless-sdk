@@ -185,6 +185,7 @@ class OrderClient:
         maker_amount: Optional[float] = None,
         expiration: Optional[int] = None,
         taker: Optional[str] = None,
+        post_only: Optional[bool] = None,
     ) -> OrderResponse:
         """Create and submit a new order.
 
@@ -200,13 +201,15 @@ class OrderClient:
         Args:
             token_id: Token ID for the outcome
             side: Order side (BUY or SELL)
-            order_type: Order type (GTC, FOK, etc.)
+            order_type: Order type (GTC, FAK, FOK, etc.)
             market_slug: Market slug identifier
-            price: Price per share (0-1 range) - required for GTC orders
-            size: Size in USDC - required for GTC orders
+            price: Price per share (0-1 range) - required for GTC and FAK orders
+            size: Size in USDC - required for GTC and FAK orders
             maker_amount: Maker amount - for FOK orders (BUY: USDC to spend, SELL: shares to sell)
             expiration: Optional expiration timestamp
             taker: Optional taker address
+            post_only: Optional. When true, rejects the order if it would immediately match.
+                Supported only for GTC orders. Defaults to false when omitted.
 
         Returns:
             OrderResponse with order details and maker matches
@@ -264,9 +267,11 @@ class OrderClient:
             })
         else:
             if price is None or size is None:
-                raise ValueError("GTC orders require 'price' and 'size' parameters")
+                raise ValueError(
+                    f"{order_type.value} orders require 'price' and 'size' parameters"
+                )
             self._logger.info(
-                "Creating GTC order",
+                f"Creating {order_type.value} order",
                 {
                     "side": side.name,
                     "order_type": order_type.value,
@@ -349,8 +354,9 @@ class OrderClient:
             owner_id=user_data.user_id,
             order_type=order_type.value,
             market_slug=market_slug,
+            post_only=post_only if order_type == OrderType.GTC else None,
         )
-        payload_dict = payload.model_dump(by_alias=True)
+        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         self._logger.debug("Submitting order to API", {
             "payload": payload_dict,
             "order_type": order_type.value,

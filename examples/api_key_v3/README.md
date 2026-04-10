@@ -6,7 +6,7 @@ Partner-facing examples for:
 - `GET /auth/api-tokens`
 - `DELETE /auth/api-tokens/:tokenId`
 - `POST /profiles/partner-accounts`
-- delegated `POST /orders`
+- delegated `POST /orders` (`GTC` with optional `post_only`)
 - delegated `POST /orders` with `FOK`
 - delegated cancel by id / cancel all
 - WebSocket auth with HMAC-scoped tokens

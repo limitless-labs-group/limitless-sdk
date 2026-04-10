@@ -22,7 +22,7 @@ python examples/01_authentication.py
 ```
 
 ### [02_create_buy_gtc_order.py](./02_create_buy_gtc_order.py)
-Create BUY GTC (Good-Till-Cancelled) order.
+Create BUY GTC (Good-Till-Cancelled) order with optional `post_only`.
 
 ### [03_cancel_gtc_order.py](./03_cancel_gtc_order.py)
 Cancel single order by ID or all orders for a market.
@@ -35,6 +35,9 @@ Create BUY FOK (Fill-Or-Kill) order with `maker_amount`.
 
 ### [06_create_sell_fok_order.py](./06_create_sell_fok_order.py)
 Create SELL FOK order with `maker_amount`.
+
+### [10_create_buy_fak_order.py](./10_create_buy_fak_order.py)
+Create BUY FAK (Fill-And-Kill) order with `price` + `size`.
 
 ### [06_retry_handling.py](./06_retry_handling.py)
 Retry mechanism - 3 retries on 404 errors using `@retry_on_errors` decorator.
@@ -52,7 +55,7 @@ Market-pages navigation API: navigation tree, by-path resolution, markets filter
 Partner-facing API token v3 / HMAC examples:
 - token capabilities / derive / list / revoke
 - partner account creation
-- delegated GTC order create / cancel
+- delegated GTC order create / cancel (with `post_only`)
 - delegated FOK order placement
 - narrated e2e flow
 - HMAC-authenticated websocket connection
@@ -75,6 +78,7 @@ points = response['accumulativePoints']
 
 **Order Types:**
 - **GTC (Good-Till-Cancelled)**: Uses `price` + `size` parameters
+- **FAK (Fill-And-Kill)**: Uses `price` + `size` and cancels any remainder
 - **FOK (Fill-Or-Kill)**: Uses `maker_amount` (total USDC to spend/receive)
 
 **Error Handling:**

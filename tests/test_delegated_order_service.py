@@ -107,6 +107,34 @@ async def test_create_order_supports_fok_maker_amount(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_create_order_omits_post_only_for_fak(monkeypatch):
+    http_client = Mock()
+    http_client.require_auth = Mock()
+    http_client.post = AsyncMock(return_value=_order_response_payload())
+    service = DelegatedOrderService(http_client)
+
+    monkeypatch.setattr(
+        "limitless_sdk.orders.builder.OrderBuilder._generate_salt",
+        lambda self: 321,
+    )
+
+    await service.create_order(
+        token_id="123",
+        side=Side.BUY,
+        order_type=OrderType.FAK,
+        market_slug="bitcoin-2026",
+        on_behalf_of=326,
+        price=0.55,
+        size=5.0,
+        post_only=True,
+    )
+
+    _, payload = http_client.post.await_args.args
+    assert payload["orderType"] == "FAK"
+    assert "postOnly" not in payload
+
+
+@pytest.mark.asyncio
 async def test_cancel_variants_pass_on_behalf_query_params():
     http_client = Mock()
     http_client.require_auth = Mock()
