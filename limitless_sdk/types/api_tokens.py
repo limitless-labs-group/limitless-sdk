@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 ScopeTrading = "trading"
 ScopeAccountCreation = "account_creation"
 ScopeDelegatedSigning = "delegated_signing"
+ScopeWithdrawal = "withdrawal"
 
 
 class HMACCredentials(BaseModel):

@@ -57,6 +57,7 @@ Partner-facing API token v3 / HMAC examples:
 - partner account creation
 - delegated GTC order create / cancel (with `post_only`)
 - delegated FOK order placement
+- server-wallet redeem and optional withdraw
 - narrated e2e flow
 - HMAC-authenticated websocket connection
 

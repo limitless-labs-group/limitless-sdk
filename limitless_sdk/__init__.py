@@ -39,6 +39,7 @@ from .portfolio import PortfolioFetcher
 from .api_tokens import ApiTokenService
 from .partner_accounts import PartnerAccountService
 from .delegated_orders import DelegatedOrderService
+from .server_wallets import ServerWalletService
 
 # Orders module
 from .orders import (
@@ -119,6 +120,7 @@ from .types import (
     ScopeTrading,
     ScopeAccountCreation,
     ScopeDelegatedSigning,
+    ScopeWithdrawal,
     HMACCredentials,
     ApiTokenProfile,
     DeriveApiTokenInput,
@@ -131,6 +133,11 @@ from .types import (
     DelegatedOrderSubmission,
     CreateDelegatedOrderRequest,
     CancelResponse,
+    RedeemServerWalletInput,
+    WithdrawServerWalletInput,
+    ServerWalletTransactionEnvelope,
+    RedeemServerWalletResponse,
+    WithdrawServerWalletResponse,
     # Portfolio types
     Position,
     HistoryEntry,
@@ -193,6 +200,7 @@ __all__ = [
     "ApiTokenService",
     "PartnerAccountService",
     "DelegatedOrderService",
+    "ServerWalletService",
     # Orders module
     "OrderBuilder",
     "OrderSigner",
@@ -261,6 +269,7 @@ __all__ = [
     "ScopeTrading",
     "ScopeAccountCreation",
     "ScopeDelegatedSigning",
+    "ScopeWithdrawal",
     "HMACCredentials",
     "ApiTokenProfile",
     "DeriveApiTokenInput",
@@ -273,6 +282,11 @@ __all__ = [
     "DelegatedOrderSubmission",
     "CreateDelegatedOrderRequest",
     "CancelResponse",
+    "RedeemServerWalletInput",
+    "WithdrawServerWalletInput",
+    "ServerWalletTransactionEnvelope",
+    "RedeemServerWalletResponse",
+    "WithdrawServerWalletResponse",
     # Portfolio types
     "Position",
     "HistoryEntry",

@@ -4,6 +4,7 @@ from limitless_sdk import Client
 from limitless_sdk.api_tokens import ApiTokenService
 from limitless_sdk.delegated_orders import DelegatedOrderService
 from limitless_sdk.partner_accounts import PartnerAccountService
+from limitless_sdk.server_wallets import ServerWalletService
 from limitless_sdk.types import HMACCredentials
 
 
@@ -13,6 +14,7 @@ def test_client_initializes_partner_services():
     assert isinstance(client.api_tokens, ApiTokenService)
     assert isinstance(client.partner_accounts, PartnerAccountService)
     assert isinstance(client.delegated_orders, DelegatedOrderService)
+    assert isinstance(client.server_wallets, ServerWalletService)
     assert client.http.get_api_key() == "plain-api-key"
 
 

@@ -49,6 +49,7 @@ from .api_tokens import (
     ScopeTrading,
     ScopeAccountCreation,
     ScopeDelegatedSigning,
+    ScopeWithdrawal,
     HMACCredentials,
     ApiTokenProfile,
     DeriveApiTokenInput,
@@ -65,6 +66,13 @@ from .delegated_orders import (
     DelegatedOrderSubmission,
     CreateDelegatedOrderRequest,
     CancelResponse,
+)
+from .server_wallets import (
+    RedeemServerWalletInput,
+    WithdrawServerWalletInput,
+    ServerWalletTransactionEnvelope,
+    RedeemServerWalletResponse,
+    WithdrawServerWalletResponse,
 )
 from .portfolio import (
     Position,
@@ -125,6 +133,7 @@ __all__ = [
     "ScopeTrading",
     "ScopeAccountCreation",
     "ScopeDelegatedSigning",
+    "ScopeWithdrawal",
     "HMACCredentials",
     "ApiTokenProfile",
     "DeriveApiTokenInput",
@@ -137,6 +146,11 @@ __all__ = [
     "DelegatedOrderSubmission",
     "CreateDelegatedOrderRequest",
     "CancelResponse",
+    "RedeemServerWalletInput",
+    "WithdrawServerWalletInput",
+    "ServerWalletTransactionEnvelope",
+    "RedeemServerWalletResponse",
+    "WithdrawServerWalletResponse",
     # Portfolio types
     "Position",
     "HistoryEntry",

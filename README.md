@@ -13,7 +13,7 @@ A minimalistic, async Python SDK for interacting with the Limitless Exchange API
 - 💼 **Portfolio tracking** - Positions and user history
 - 🔄 **Automatic retries** - Configurable retry logic with error handling
 - 🌐 **WebSocket support** - Real-time orderbook updates
-- 🤝 **Partner account + delegated trading helpers** - Server-wallet child accounts and delegated GTC/FAK/FOK order flows
+- 🤝 **Partner account + delegated trading helpers** - Server-wallet child accounts, delegated GTC/FAK/FOK order flows, and server-wallet redeem/withdraw
 - 🛡️ **Custom headers** - Global and per-request header configuration
 - ⚡ **Async/await support** - Modern async Python with aiohttp
 - 🚀 **Venue caching** - Automatic contract address caching for optimized order creation
@@ -119,6 +119,7 @@ from limitless_sdk import (
     ScopeTrading,
     ScopeDelegatedSigning,
     ScopeAccountCreation,
+    ScopeWithdrawal,
 )
 
 
@@ -133,7 +134,12 @@ async def main():
         identity_token,
         DeriveApiTokenInput(
             label="partner-bot",
-            scopes=[ScopeTrading, ScopeDelegatedSigning, ScopeAccountCreation],
+            scopes=[
+                ScopeTrading,
+                ScopeDelegatedSigning,
+                ScopeAccountCreation,
+                ScopeWithdrawal,
+            ],
         ),
     )
 
@@ -164,6 +170,8 @@ Partner surface added by this flow:
 - `delegated_orders.create_order()`
 - `delegated_orders.cancel_on_behalf_of()`
 - `delegated_orders.cancel_all_on_behalf_of()`
+- `server_wallets.redeem_positions()`
+- `server_wallets.withdraw()`
 
 Standard `X-API-Key` authentication remains fully supported for the existing portfolio, market, and regular order flows.
 
@@ -175,6 +183,54 @@ Recommended setup:
 - Store the real HMAC credentials on your backend.
 - Use this SDK server-side to sign partner-authenticated requests.
 - Expose only your own app-specific endpoints to the frontend.
+
+#### Server Wallet Redeem & Withdraw
+
+Use `client.server_wallets` only for server-managed wallets created in delegated-signing partner flows with `create_server_wallet=True`.
+
+- `redeem_positions()` calls `POST /portfolio/redeem`
+- `withdraw()` calls `POST /portfolio/withdraw`
+- both operations require HMAC-scoped API-token auth
+- `withdraw()` also requires the `withdrawal` scope
+- `on_behalf_of` should be the delegated child profile id
+- `amount` for withdraw must be provided in the token smallest unit
+- in practice, redeem is most useful for an existing child profile that already traded in a now-resolved market
+
+```python
+import asyncio
+
+from limitless_sdk import Client, HMACCredentials
+
+
+async def main():
+    client = Client(
+        base_url="https://api.limitless.exchange",
+        hmac_credentials=HMACCredentials(
+            token_id="token-id",
+            secret="token-secret",
+        ),
+    )
+
+    try:
+        redeem = await client.server_wallets.redeem_positions(
+            condition_id="0x...",
+            on_behalf_of=352,
+        )
+
+        withdraw = await client.server_wallets.withdraw(
+            amount="5000000",
+            on_behalf_of=352,
+        )
+
+        print(redeem.transaction_id, withdraw.transaction_id)
+    finally:
+        await client.close()
+
+
+asyncio.run(main())
+```
+
+`redeem.hash` or `withdraw.hash` may be an empty string for user-operation submissions. Track those calls using `user_operation_hash` or `transaction_id`.
 
 ### Environment Variables
 
@@ -580,7 +636,7 @@ See the [`examples/`](https://github.com/limitless-labs-group/limitless-sdk/tree
 - **`06_retry_handling.py`** - Custom retry logic with `@retry_on_errors`
 - **`07_auto_retry_second_sample.py`** - Auto-retry with `RetryableClient`
 - **`08_websocket_events.py`** - Real-time orderbook updates
-- **`examples/api_key_v3/README.md`** - Partner HMAC examples, including delegated GTC/FAK/FOK order flows
+- **`examples/api_key_v3/README.md`** - Partner HMAC examples, including delegated GTC/FAK/FOK order flows and server-wallet redeem/withdraw
 
 ## Development
 
