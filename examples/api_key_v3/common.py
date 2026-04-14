@@ -1,6 +1,7 @@
 """Shared helpers for api-token v3 partner examples."""
 
 import os
+from pathlib import Path
 from typing import Iterable, Optional
 
 from dotenv import load_dotenv
@@ -14,7 +15,22 @@ from limitless_sdk import (
 )
 
 
-load_dotenv()
+
+_CURRENT_DIR = Path(__file__).resolve().parent
+
+
+def _load_example_env() -> None:
+    candidates = [
+        _CURRENT_DIR / ".env",
+        _CURRENT_DIR.parent / ".env",
+        _CURRENT_DIR.parent.parent / ".env",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            load_dotenv(candidate, override=False)
+
+
+_load_example_env()
 
 
 def require_env(name: str) -> str:
@@ -47,7 +63,7 @@ def create_client(
     hmac_credentials: Optional[HMACCredentials] = None,
 ) -> Client:
     return Client(
-        base_url=os.getenv("LIMITLESS_API_URL"),
+        base_url=os.getenv("LIMITLESS_API_URL") or os.getenv("API_URL"),
         api_key=api_key,
         hmac_credentials=hmac_credentials,
         logger=build_logger(),

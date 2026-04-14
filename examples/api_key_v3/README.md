@@ -8,6 +8,7 @@ Partner-facing examples for:
 - `POST /profiles/partner-accounts`
 - delegated `POST /orders` (`GTC` with optional `post_only`)
 - delegated `POST /orders` with `FOK`
+- delegated `POST /orders` with `FAK`
 - `POST /portfolio/redeem`
 - `POST /portfolio/withdraw`
 - delegated cancel by id / cancel all

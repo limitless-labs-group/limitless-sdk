@@ -636,7 +636,7 @@ See the [`examples/`](https://github.com/limitless-labs-group/limitless-sdk/tree
 - **`06_retry_handling.py`** - Custom retry logic with `@retry_on_errors`
 - **`07_auto_retry_second_sample.py`** - Auto-retry with `RetryableClient`
 - **`08_websocket_events.py`** - Real-time orderbook updates
-- **`examples/api_key_v3/README.md`** - Partner HMAC examples, including delegated GTC/FAK/FOK order flows and server-wallet redeem/withdraw
+- **`examples/api_key_v3/README.md`** - Partner HMAC examples, including delegated GTC/FAK/FOK order flows, TS-shared redeem handoff, and server-wallet redeem/withdraw
 
 ## Development
 
