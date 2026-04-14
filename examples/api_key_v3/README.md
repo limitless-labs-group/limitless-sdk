@@ -8,6 +8,9 @@ Partner-facing examples for:
 - `POST /profiles/partner-accounts`
 - delegated `POST /orders` (`GTC` with optional `post_only`)
 - delegated `POST /orders` with `FOK`
+- delegated `POST /orders` with `FAK`
+- `POST /portfolio/redeem`
+- `POST /portfolio/withdraw`
 - delegated cancel by id / cancel all
 - WebSocket auth with HMAC-scoped tokens
 
@@ -26,6 +29,12 @@ export LIMITLESS_DELEGATED_ACCOUNT_READY_DELAY_MS=10000
 export LIMITLESS_PLACE_DELEGATED_ORDER=1
 export LIMITLESS_REVOKE_DERIVED_TOKEN=1
 export LIMITLESS_HTTP_TRACE=1
+export LIMITLESS_SKIP_WITHDRAW=1
+export LIMITLESS_WITHDRAW_AMOUNT=
+export LIMITLESS_WITHDRAW_DESTINATION=
+export LIMITLESS_WITHDRAW_TOKEN=
+export LIMITLESS_ON_BEHALF_OF=
+export LIMITLESS_SERVER_WALLET_ACCOUNT=
 ```
 
 ## Run
@@ -35,6 +44,7 @@ python examples/api_key_v3/api_tokens.py
 python examples/api_key_v3/partner_account.py
 python examples/api_key_v3/delegated_order.py
 python examples/api_key_v3/delegated_fok_order.py
+python examples/api_key_v3/server_wallet_redeem_withdraw.py
 python examples/api_key_v3/e2e_flow.py
 python examples/api_key_v3/websocket_hmac.py
 ```
@@ -44,4 +54,7 @@ python examples/api_key_v3/websocket_hmac.py
 - The HMAC-scoped client signs request headers for you once you configure `HMACCredentials`.
 - Delegated server-wallet accounts must be funded before the first delegated trade.
 - New server wallets may need a short backend allowance-provisioning delay before trading succeeds.
+- The server-wallet redeem/withdraw example is only for child accounts created with `create_server_wallet=True`.
+- `LIMITLESS_ON_BEHALF_OF` lets the redeem/withdraw example target an existing child profile that already holds resolved positions.
+- `LIMITLESS_SKIP_WITHDRAW=1` is the safe default; set it to `0` and provide `LIMITLESS_WITHDRAW_AMOUNT` to run the withdraw step.
 - In partner-account EOA mode, the wallet you prove with `x-account` / `x-signature` is the child account being linked. It must be different from the parent partner profile account.

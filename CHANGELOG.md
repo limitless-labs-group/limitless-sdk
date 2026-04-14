@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.6]
+### Added
+
+- Server-managed wallet support for delegated-signing partner flows:
+  - new `ServerWalletService`
+  - new `client.server_wallets` root entrypoint
+  - `redeem_positions()` for `POST /portfolio/redeem`
+  - `withdraw()` for `POST /portfolio/withdraw`
+- New public server-wallet request/response models for redeem and withdraw operations.
+- New `ScopeWithdrawal` constant for api-token scope handling.
+- New focused tests for server-wallet validation, HMAC-only auth enforcement, and root client composition.
+- New partner api-token v3 example covering server-wallet redeem and optional withdraw.
+
 ## [1.0.5]
 
 ### Added
