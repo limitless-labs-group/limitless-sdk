@@ -82,10 +82,12 @@ async def main():
             print(f"  Accumulative points: {positions.get('accumulativePoints', 0)}\n")
 
             # Get user's transaction history
-            history = await portfolio.get_user_history(page=1, limit=5)
+            history = await portfolio.get_user_history(limit=5)
             print(f"✓ User history retrieved:")
-            print(f"  Total entries: {history.get('totalCount', 0)}")
-            print(f"  Showing: {len(history.get('data', []))} entries\n")
+            print(f"  Showing: {len(history.get('data', []))} entries")
+            if history.get('nextCursor'):
+                print(f"  Next cursor: {history['nextCursor']}")
+            print()
 
             # Demonstrate fluent API: market.get_user_orders()
             # First, get a market (this caches venue data for order signing)

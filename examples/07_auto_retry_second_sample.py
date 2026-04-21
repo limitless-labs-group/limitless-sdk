@@ -102,10 +102,9 @@ async def main():
         )
 
         portfolio2 = PortfolioFetcher(custom_retryable)
-        history = await portfolio2.get_user_history(page=1, limit=5)
+        history = await portfolio2.get_user_history(limit=5)
 
         print(f"✓ Request successful!")
-        print(f"  Total history entries: {history.get('totalCount', 0)}")
         print(f"  Fetched: {len(history.get('data', []))} entries")
         if retry_attempts["count"] > 0:
             print(f"  Retry attempts: {retry_attempts['count']}")

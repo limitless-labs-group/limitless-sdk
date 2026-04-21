@@ -77,3 +77,22 @@ def test_order_response_rejects_large_integer_like_price_string() -> None:
 
     with pytest.raises(ValidationError):
         OrderResponse(order=payload, makerMatches=[])
+
+
+def test_order_response_accepts_null_created_at_in_maker_matches() -> None:
+    response = OrderResponse(
+        order=_base_order_payload(),
+        makerMatches=[
+            {
+                "id": "e6ef7cf5-d43b-4927-80d1-23f34feb48d3",
+                "createdAt": None,
+                "matchedSize": "1000000",
+                "orderId": "2c92ce01-e59b-4966-9d3f-a03bdb85e3eb",
+            }
+        ],
+    )
+
+    assert response.maker_matches is not None
+    assert len(response.maker_matches) == 1
+    assert response.maker_matches[0].created_at is None
+    assert response.maker_matches[0].matched_size == "1000000"

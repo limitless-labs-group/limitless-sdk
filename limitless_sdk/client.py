@@ -558,26 +558,27 @@ class LimitlessClient:
                 raise LimitlessAPIError(f"Failed to get positions: {response.status} - {error_text}", response.status)
     
     @retry_on_rate_limit(max_retries=2, delays=[5, 10])
-    async def get_user_history(self, page: int, limit: int) -> Dict[str, Union[List[Dict], int]]:
-        """Get paginated history of user actions.
-        
-        Includes AMM, CLOB trades, splits/merges, NegRisk conversions.
-        
+    async def get_user_history(self, cursor: str | None = None, limit: int = 20) -> Dict[str, Union[List[Dict], int]]:
+        """Get user history with cursor-based pagination.
+
+        Includes AMM, CLOB trades, NegRisk trades & conversions.
+
         Args:
-            page: Page number (required)
-            limit: Number of items per page (required)
-            
+            cursor: Opaque cursor for pagination. Pass None for first page.
+                    Use the returned 'nextCursor' value for subsequent pages.
+            limit: Number of items per page (1-100, default 20)
+
         Returns:
             Dictionary containing:
                 - data: List of history entries
-                - totalCount: Total count of entries
+                - nextCursor: Opaque cursor for next page (null when no more pages)
         """
         await self.ensure_authenticated()
         await self.ensure_session()
-        
+
         url = f"{self.base_url}/portfolio/history"
         params = {
-            "page": page,
+            "cursor": cursor or "",
             "limit": limit
         }
         
