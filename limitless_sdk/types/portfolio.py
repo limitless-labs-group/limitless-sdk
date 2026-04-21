@@ -28,44 +28,75 @@ class Position(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class HistoryMarketCollateral(BaseModel):
+    """Collateral token info inside a history market."""
+
+    symbol: str
+    id: str
+    decimals: int
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class HistoryMarket(BaseModel):
+    """Market snapshot embedded in a history entry."""
+
+    closed: bool = False
+    collateral: Optional[HistoryMarketCollateral] = None
+    group: Optional[Any] = None
+    condition_id: Optional[str] = Field(None, alias="conditionId")
+    funding: Optional[str] = None
+    id: str = ""
+    slug: str = ""
+    title: str = ""
+    expiration_date: Optional[str] = Field(None, alias="expirationDate")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class HistoryEntry(BaseModel):
-    """User history entry.
+    """User history entry (cursor-based).
 
     Represents various types of user actions:
     - AMM trades
     - CLOB trades
-    - Token splits/merges
-    - NegRisk conversions
+    - NegRisk trades & conversions
 
     Attributes:
-        id: Entry ID
-        type: Entry type (trade, split, merge, conversion, etc.)
-        created_at: Entry creation timestamp
-        market_slug: Associated market slug
-        amount: Transaction amount
-        details: Additional entry details
+        block_timestamp: Block timestamp of the transaction
+        collateral_amount: Collateral amount involved
+        market: Market snapshot for this entry
+        outcome_index: Index of the outcome traded
+        outcome_token_amount: Single outcome token amount
+        outcome_token_amounts: List of outcome token amounts
+        outcome_token_price: Price of outcome token (string or number)
+        strategy: Trade strategy (e.g. 'Buy', 'Sell')
+        transaction_hash: On-chain transaction hash
     """
 
-    id: str
-    type: str
-    created_at: str = Field(alias="createdAt")
-    market_slug: Optional[str] = Field(None, alias="marketSlug")
-    amount: Optional[str] = None
-    details: Optional[Dict[str, Any]] = None
+    block_timestamp: Optional[int] = Field(None, alias="blockTimestamp")
+    collateral_amount: Optional[str] = Field(None, alias="collateralAmount")
+    market: Optional[HistoryMarket] = None
+    outcome_index: Optional[int] = Field(None, alias="outcomeIndex")
+    outcome_token_amount: Optional[str] = Field(None, alias="outcomeTokenAmount")
+    outcome_token_amounts: Optional[List[str]] = Field(None, alias="outcomeTokenAmounts")
+    outcome_token_price: Optional[Any] = Field(None, alias="outcomeTokenPrice")
+    strategy: Optional[str] = None
+    transaction_hash: Optional[str] = Field(None, alias="transactionHash")
 
     model_config = ConfigDict(populate_by_name=True)
 
 
 class HistoryResponse(BaseModel):
-    """Paginated user history response.
+    """Cursor-based user history response.
 
     Attributes:
         data: List of history entries
-        total_count: Total number of entries
+        next_cursor: Opaque cursor for fetching the next page (None when no more pages)
     """
 
-    data: List[HistoryEntry]
-    total_count: int = Field(alias="totalCount")
+    data: List[HistoryEntry] = []
+    next_cursor: Optional[str] = Field(None, alias="nextCursor")
 
     model_config = ConfigDict(populate_by_name=True)
 

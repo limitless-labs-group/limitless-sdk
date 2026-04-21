@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.7]
+### Changed
+
+- Migrated portfolio history endpoint from legacy page/limit pagination to cursor-based pagination.
+  - `get_user_history()` now accepts `cursor: str | None` instead of `page: int`.
+  - First request should omit cursor (or pass `None`); subsequent requests pass the returned `next_cursor`.
+  - Default limit changed from 10 to 20 to match API default.
+- Updated `HistoryEntry` model to match current API response shape (`block_timestamp`, `strategy`, `transaction_hash`, `market`, etc.).
+- Replaced `HistoryResponse.total_count` with `next_cursor: Optional[str]` for cursor-based pagination.
+- Added `HistoryMarket` and `HistoryMarketCollateral` models.
+
 ## [1.0.6]
 ### Added
 

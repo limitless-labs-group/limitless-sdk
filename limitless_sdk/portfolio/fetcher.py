@@ -134,17 +134,18 @@ class PortfolioFetcher:
         response = await self.get_positions()
         return response.get('amm', [])
 
-    async def get_user_history(self, page: int = 1, limit: int = 10) -> dict:
-        """Get paginated history of user actions.
+    async def get_user_history(self, cursor: str | None = None, limit: int = 20) -> dict:
+        """Get user history with cursor-based pagination.
 
         Includes AMM trades, CLOB trades, Negrisk trades & conversions.
 
         Args:
-            page: Page number (required, starts at 1)
-            limit: Number of items per page (required)
+            cursor: Opaque cursor for pagination. Pass None for first page.
+                    Use the returned 'nextCursor' value for subsequent pages.
+            limit: Number of items per page (1-100, default 20)
 
         Returns:
-            Raw API response dict with 'data' and 'totalCount'
+            Raw API response dict with 'data' and 'nextCursor'
 
         Raises:
             AuthenticationError: If not authenticated (401)
@@ -153,26 +154,29 @@ class PortfolioFetcher:
 
         Example:
             >>> # Get first page
-            >>> response = await fetcher.get_user_history(page=1, limit=20)
-            >>> print(f"Found {len(response['data'])} of {response['totalCount']} entries")
+            >>> response = await fetcher.get_user_history(limit=20)
+            >>> print(f"Found {len(response['data'])} entries")
             >>>
             >>> # Process history entries
             >>> for entry in response['data']:
-            ...     print(f"Type: {entry['type']}")
-            ...     print(f"Market: {entry['marketSlug']}")
+            ...     print(f"Strategy: {entry['strategy']}")
+            ...     print(f"Market: {entry.get('market', {}).get('slug')}")
             >>>
-            >>> # Get next page
-            >>> page2 = await fetcher.get_user_history(page=2, limit=20)
+            >>> # Get next page using cursor
+            >>> if response.get('nextCursor'):
+            ...     page2 = await fetcher.get_user_history(cursor=response['nextCursor'])
         """
-        self._logger.debug("Fetching user history", {"page": page, "limit": limit})
+        self._logger.debug("Fetching user history", {"cursor": cursor, "limit": limit})
 
         try:
-            params = {"page": page, "limit": limit}
+            # Always send cursor= (empty on first page) to use cursor flow;
+            # omitting it falls back to the legacy page/limit path.
+            params = {"cursor": cursor or "", "limit": limit}
             response_data = await self._http_client.get("/portfolio/history", params=params)
 
             self._logger.info("User history fetched successfully")
             return response_data  # Return raw API response 1:1
 
         except Exception as error:
-            self._logger.error("Failed to fetch user history", error, {"page": page, "limit": limit})
+            self._logger.error("Failed to fetch user history", error, {"cursor": cursor, "limit": limit})
             raise
