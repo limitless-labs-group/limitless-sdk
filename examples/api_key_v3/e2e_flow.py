@@ -68,8 +68,9 @@ async def main() -> None:
                 f"on {market.collateral_token.address}."
             )
         print(
-            "   New server wallets also need the backend allowance provisioning "
-            "to finish before the first delegated trade."
+            "   Check delegated allowances with partner_accounts.check_allowances(); "
+            "if retryable targets are missing or failed, call "
+            "partner_accounts.retry_allowances() and poll again."
         )
 
         delay_ms = ready_delay_ms()

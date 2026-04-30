@@ -69,10 +69,15 @@ async def main() -> None:
             f"  child_profile_id={account_profile_id} child_account={account_address}"
         )
         print(f"  derived_token_id={derived.token_id} scopes={derived.scopes}")
+        print(
+            "Check allowances with partner_accounts.check_allowances(); "
+            "if retryable targets are missing or failed, call "
+            "partner_accounts.retry_allowances() and poll again."
+        )
 
         delay_ms = ready_delay_ms()
         if delay_ms > 0:
-            print(f"Waiting {delay_ms}ms for allowance provisioning...")
+            print(f"Waiting {delay_ms}ms before checking server-wallet readiness...")
             await asyncio.sleep(delay_ms / 1000)
 
         redeem_response = await scoped.server_wallets.redeem_positions(

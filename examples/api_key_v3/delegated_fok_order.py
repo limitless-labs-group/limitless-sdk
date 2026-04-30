@@ -47,10 +47,15 @@ async def main() -> None:
             f"  derived_token_id={derived.token_id} scopes={derived.scopes}"
         )
         print(f"Fund {account.account} with USDC before placing delegated FOK orders.")
+        print(
+            "Check allowances with partner_accounts.check_allowances(); "
+            "if retryable targets are missing or failed, call "
+            "partner_accounts.retry_allowances() and poll again."
+        )
 
         delay_ms = ready_delay_ms()
         if delay_ms > 0:
-            print(f"Waiting {delay_ms}ms for allowance provisioning...")
+            print(f"Waiting {delay_ms}ms before checking delegated FOK readiness...")
             await asyncio.sleep(delay_ms / 1000)
 
         if not truthy_env("LIMITLESS_PLACE_DELEGATED_ORDER"):

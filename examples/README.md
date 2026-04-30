@@ -10,6 +10,8 @@ export LIMITLESS_API_KEY="sk_live_..."  # For authenticated endpoints
 export PRIVATE_KEY="0x..."              # For order signing (EIP-712)
 export MARKET_SLUG="your-market-slug"   # For order examples
 export LIMITLESS_IDENTITY_TOKEN="..."   # For partner api-token v3 examples
+export LIMITLESS_API_TOKEN_ID="..."      # For partner HMAC examples
+export LIMITLESS_API_TOKEN_SECRET="..."  # For partner HMAC examples
 ```
 
 ## Examples
@@ -55,10 +57,10 @@ Market-pages navigation API: navigation tree, by-path resolution, markets filter
 Partner-facing API token v3 / HMAC examples:
 - token capabilities / derive / list / revoke
 - partner account creation
+- server-wallet allowance check / retry
 - delegated GTC order create / cancel (with `post_only`)
 - delegated FAK order placement
 - delegated FOK order placement
-- redeem handoff flow that reuses the TS saved delegated child account
 - server-wallet redeem and optional withdraw
 - narrated e2e flow
 - HMAC-authenticated websocket connection

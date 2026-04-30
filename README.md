@@ -1,6 +1,10 @@
 # Limitless Exchange Python SDK
 
+**v1.0.8** | Async | Type-Safe | Partner HMAC Support
+
 A minimalistic, async Python SDK for interacting with the Limitless Exchange API.
+
+> **v1.0.8 Release**: Adds partner server-wallet allowance recovery helpers, live-chain retry semantics, and a runnable partner allowance example. See [CHANGELOG.md](./CHANGELOG.md) for release notes.
 
 ## Features
 
@@ -167,6 +171,8 @@ Partner surface added by this flow:
 - `api_tokens.list_tokens()`
 - `api_tokens.revoke_token()`
 - `partner_accounts.create_account()`
+- `partner_accounts.check_allowances()`
+- `partner_accounts.retry_allowances()`
 - `delegated_orders.create_order()`
 - `delegated_orders.cancel_on_behalf_of()`
 - `delegated_orders.cancel_all_on_behalf_of()`
@@ -183,6 +189,49 @@ Recommended setup:
 - Store the real HMAC credentials on your backend.
 - Use this SDK server-side to sign partner-authenticated requests.
 - Expose only your own app-specific endpoints to the frontend.
+
+#### Partner Server-Wallet Allowances
+
+Use `client.partner_accounts.check_allowances(profile_id)` and `client.partner_accounts.retry_allowances(profile_id)` only for partner child profiles created with `create_server_wallet=True`.
+
+- `check_allowances()` calls `GET /profiles/partner-accounts/:profileId/allowances`
+- `retry_allowances()` calls `POST /profiles/partner-accounts/:profileId/allowances/retry`
+- both operations require HMAC-scoped API-token auth with `account_creation` and `delegated_signing` scopes
+- `profile_id` should be the delegated child profile id
+
+```python
+import asyncio
+
+from limitless_sdk import Client, HMACCredentials
+
+
+async def main():
+    client = Client(
+        base_url="https://api.limitless.exchange",
+        hmac_credentials=HMACCredentials(
+            token_id="token-id",
+            secret="token-secret",
+        ),
+    )
+
+    try:
+        allowances = await client.partner_accounts.check_allowances(352)
+        if not allowances.ready:
+            # Retry re-checks live chain state and submits only targets still missing.
+            # A returned "submitted" status means this request submitted a sponsored tx/user operation.
+            allowances = await client.partner_accounts.retry_allowances(352)
+
+        print(allowances.ready)
+    finally:
+        await client.close()
+
+
+asyncio.run(main())
+```
+
+Poll `check_allowances()` first. If `ready` is false and one or more targets are `missing` or `failed` with `retryable=True`, call `retry_allowances()`, then poll `check_allowances()` again after a short delay. Retry `429` responses raise `RateLimitError` and include `retryAfterSeconds` in `error.response_data`; retry `409` responses raise `ConflictError`, which means another retry is already running.
+
+For a complete runnable flow, see [`examples/api_key_v3/partner_account_allowances.py`](https://github.com/limitless-labs-group/limitless-sdk/blob/main/examples/api_key_v3/partner_account_allowances.py).
 
 #### Server Wallet Redeem & Withdraw
 
@@ -636,7 +685,7 @@ See the [`examples/`](https://github.com/limitless-labs-group/limitless-sdk/tree
 - **`06_retry_handling.py`** - Custom retry logic with `@retry_on_errors`
 - **`07_auto_retry_second_sample.py`** - Auto-retry with `RetryableClient`
 - **`08_websocket_events.py`** - Real-time orderbook updates
-- **`examples/api_key_v3/README.md`** - Partner HMAC examples, including delegated GTC/FAK/FOK order flows, TS-shared redeem handoff, and server-wallet redeem/withdraw
+- **`examples/api_key_v3/README.md`** - Partner HMAC examples, including delegated GTC/FAK/FOK order flows, allowance recovery, and server-wallet redeem/withdraw
 
 ## Development
 
