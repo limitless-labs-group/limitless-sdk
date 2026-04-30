@@ -12,7 +12,7 @@ Example:
     >>> markets = await market_fetcher.get_markets()
 """
 
-__version__ = "1.0.6"
+__version__ = "1.0.8"
 
 # API layer - HTTP client and error handling
 from .api import (
@@ -130,6 +130,21 @@ from .types import (
     CreatePartnerAccountInput,
     CreatePartnerAccountEOAHeaders,
     PartnerAccountResponse,
+    PartnerAccountAllowanceTypeUsdcAllowance,
+    PartnerAccountAllowanceTypeCtfApproval,
+    PartnerAccountAllowanceRequiredForBuy,
+    PartnerAccountAllowanceRequiredForSell,
+    PartnerAccountAllowanceStatusConfirmed,
+    PartnerAccountAllowanceStatusMissing,
+    PartnerAccountAllowanceStatusSubmitted,
+    PartnerAccountAllowanceStatusFailed,
+    PartnerAccountAllowanceErrorPrivySponsorshipUnavailable,
+    PartnerAccountAllowanceErrorPrivySubmissionFailed,
+    PartnerAccountAllowanceErrorRpcReadFailed,
+    PartnerAccountAllowanceErrorRequestBudgetExceeded,
+    PartnerAccountAllowanceSummary,
+    PartnerAccountAllowanceTarget,
+    PartnerAccountAllowanceResponse,
     DelegatedOrderSubmission,
     CreateDelegatedOrderRequest,
     CancelResponse,
@@ -279,6 +294,21 @@ __all__ = [
     "CreatePartnerAccountInput",
     "CreatePartnerAccountEOAHeaders",
     "PartnerAccountResponse",
+    "PartnerAccountAllowanceTypeUsdcAllowance",
+    "PartnerAccountAllowanceTypeCtfApproval",
+    "PartnerAccountAllowanceRequiredForBuy",
+    "PartnerAccountAllowanceRequiredForSell",
+    "PartnerAccountAllowanceStatusConfirmed",
+    "PartnerAccountAllowanceStatusMissing",
+    "PartnerAccountAllowanceStatusSubmitted",
+    "PartnerAccountAllowanceStatusFailed",
+    "PartnerAccountAllowanceErrorPrivySponsorshipUnavailable",
+    "PartnerAccountAllowanceErrorPrivySubmissionFailed",
+    "PartnerAccountAllowanceErrorRpcReadFailed",
+    "PartnerAccountAllowanceErrorRequestBudgetExceeded",
+    "PartnerAccountAllowanceSummary",
+    "PartnerAccountAllowanceTarget",
+    "PartnerAccountAllowanceResponse",
     "DelegatedOrderSubmission",
     "CreateDelegatedOrderRequest",
     "CancelResponse",
