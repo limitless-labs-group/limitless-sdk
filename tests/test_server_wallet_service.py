@@ -9,6 +9,7 @@ from limitless_sdk.server_wallets import ServerWalletService
 
 VALID_CONDITION_ID = "0x" + ("ab" * 32)
 VALID_ADDRESS = "0x1234567890123456789012345678901234567890"
+VALID_DESTINATION = "0x0F3262730c909408042F9Da345a916dc0e1F9787"
 
 
 @pytest.mark.asyncio
@@ -85,6 +86,80 @@ async def test_withdraw_posts_expected_payload():
         },
     )
     assert response.amount == "5000000"
+
+
+@pytest.mark.asyncio
+async def test_withdraw_posts_explicit_destination_payload():
+    http_client = Mock()
+    http_client.require_auth = Mock()
+    http_client.get_hmac_credentials = Mock(
+        return_value={"token_id": "token-1", "secret": "secret-1"}
+    )
+    http_client.post = AsyncMock(
+        return_value={
+            "hash": "",
+            "userOperationHash": "0xuserop",
+            "transactionId": "tx-3",
+            "walletAddress": VALID_ADDRESS,
+            "token": VALID_ADDRESS,
+            "destination": VALID_DESTINATION,
+            "amount": "5000000",
+        }
+    )
+
+    service = ServerWalletService(http_client)
+    response = await service.withdraw(
+        amount="5000000",
+        on_behalf_of=326,
+        token=VALID_ADDRESS,
+        destination=VALID_DESTINATION,
+    )
+
+    http_client.post.assert_awaited_once_with(
+        "/portfolio/withdraw",
+        {
+            "amount": "5000000",
+            "onBehalfOf": 326,
+            "token": VALID_ADDRESS,
+            "destination": VALID_DESTINATION,
+        },
+    )
+    assert response.destination == VALID_DESTINATION
+
+
+@pytest.mark.asyncio
+async def test_withdraw_posts_destination_only_payload():
+    http_client = Mock()
+    http_client.require_auth = Mock()
+    http_client.get_hmac_credentials = Mock(
+        return_value={"token_id": "token-1", "secret": "secret-1"}
+    )
+    http_client.post = AsyncMock(
+        return_value={
+            "hash": "",
+            "userOperationHash": "0xuserop",
+            "transactionId": "tx-4",
+            "walletAddress": VALID_ADDRESS,
+            "token": VALID_ADDRESS,
+            "destination": VALID_DESTINATION,
+            "amount": "5000000",
+        }
+    )
+
+    service = ServerWalletService(http_client)
+    response = await service.withdraw(
+        amount="5000000",
+        destination=VALID_DESTINATION,
+    )
+
+    http_client.post.assert_awaited_once_with(
+        "/portfolio/withdraw",
+        {
+            "amount": "5000000",
+            "destination": VALID_DESTINATION,
+        },
+    )
+    assert response.destination == VALID_DESTINATION
 
 
 @pytest.mark.asyncio
@@ -176,6 +251,15 @@ async def test_server_wallet_rejects_invalid_on_behalf_of_before_network():
             condition_id=VALID_CONDITION_ID,
             on_behalf_of=0,
         )
+
+    with pytest.raises(ValueError, match="on_behalf_of must be a positive integer"):
+        await service.withdraw(amount="1000000", on_behalf_of=0)
+
+    with pytest.raises(
+        ValueError,
+        match="on_behalf_of or destination is required for withdraw",
+    ):
+        await service.withdraw(amount="1000000")
 
     http_client.post.assert_not_awaited()
 

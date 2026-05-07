@@ -351,7 +351,11 @@ class WebSocketClient:
             raise ConnectionError("WebSocket not connected. Call connect() first.")
 
         # Check if authentication is required for authenticated channels
-        authenticated_channels = ['subscribe_positions', 'subscribe_transactions']
+        authenticated_channels = [
+            'subscribe_positions',
+            'subscribe_transactions',
+            'subscribe_order_events',
+        ]
         if (
             channel in authenticated_channels
             and not self._config.api_key

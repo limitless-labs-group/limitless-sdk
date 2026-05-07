@@ -121,6 +121,39 @@ async def test_http_client_identity_overrides_hmac_and_api_key():
 
 
 @pytest.mark.asyncio
+async def test_http_client_delete_with_identity_overrides_hmac_and_api_key():
+    session = _CapturedSession(_MockResponse(204, ""))
+    client = HttpClient(
+        base_url="https://api.limitless.exchange",
+        api_key="plain-api-key",
+        hmac_credentials=HMACCredentials(token_id="token-123", secret="c2VjcmV0"),
+    )
+    client._session = session
+
+    async def _noop_ensure():
+        return None
+
+    client._ensure_session = _noop_ensure
+
+    await client.delete_with_identity(
+        "/portfolio/withdrawal-addresses/0x0F3262730c909408042F9Da345a916dc0e1F9787",
+        "identity-token",
+    )
+
+    method, url, headers, kwargs = session.calls[0]
+    assert method == "DELETE"
+    assert (
+        url
+        == "https://api.limitless.exchange/portfolio/withdrawal-addresses/0x0F3262730c909408042F9Da345a916dc0e1F9787"
+    )
+    assert headers["identity"] == "Bearer identity-token"
+    assert "X-API-Key" not in headers
+    assert "lmts-api-key" not in headers
+    assert "lmts-signature" not in headers
+    assert kwargs["skip_auto_headers"] == ["Content-Type"]
+
+
+@pytest.mark.asyncio
 async def test_http_client_encodes_special_characters_in_query_params():
     session = _CapturedSession(_MockResponse(200, {"ok": True}))
     client = HttpClient(base_url="https://api.limitless.exchange", api_key="plain-api-key")

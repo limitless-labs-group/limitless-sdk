@@ -5,9 +5,30 @@ All notable changes to the Limitless Exchange Python SDK will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.9]
+
+### Added
+
+- Partner withdrawal-address allowlist helpers:
+  - `PartnerAccountService.add_withdrawal_address()`
+  - `PartnerAccountService.delete_withdrawal_address()`
+- Public withdrawal-address request/response models:
+  - `PartnerWithdrawalAddressInput`
+  - `PartnerWithdrawalAddressResponse`
+- `HttpClient.delete_with_identity()` and `RetryableClient.delete_with_identity()` for identity-token authenticated DELETE requests.
+- Focused tests for identity-auth withdrawal-address calls and all supported server-wallet withdraw payload modes.
+- WebSocket subscription/event surface for order events, live sports/esports, market lifecycle, oracle price data, and system messages.
+
+### Changed
+
+- `ServerWalletService.withdraw()` now accepts `on_behalf_of=None` so callers can submit authenticated caller wallet withdrawals to explicit allowed destinations.
+- `WithdrawServerWalletInput.on_behalf_of` is now optional and unset optional fields continue to be omitted from the JSON body.
+- Server-wallet withdraw docs now describe omitted-destination smart-wallet fallback and explicit whitelisted treasury destinations.
+- The server-wallet redeem/withdraw example can optionally allowlist a withdraw destination before submitting the HMAC withdraw request.
+- README, examples docs, package metadata, lockfile, and runtime `__version__` now target `v1.0.9`.
 
 ## [1.0.8] - 2026-04-30
+
 ### Added
 
 - Partner server-wallet allowance recovery endpoints:
@@ -26,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README, examples docs, package metadata, and runtime `__version__` now target `v1.0.8`.
 
 ## [1.0.7]
+
 ### Changed
 
 - Migrated portfolio history endpoint from legacy page/limit pagination to cursor-based pagination.
@@ -37,6 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `HistoryMarket` and `HistoryMarketCollateral` models.
 
 ## [1.0.6]
+
 ### Added
 
 - Server-managed wallet support for delegated-signing partner flows:

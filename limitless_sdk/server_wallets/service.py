@@ -61,18 +61,22 @@ class ServerWalletService:
     async def withdraw(
         self,
         amount: str,
-        on_behalf_of: int,
+        on_behalf_of: Optional[int] = None,
         token: Optional[str] = None,
         destination: Optional[str] = None,
     ) -> WithdrawServerWalletResponse:
         self._require_hmac_auth("withdraw_server_wallet_funds")
         self._validate_amount(amount)
-        self._validate_on_behalf_of(on_behalf_of)
+
+        if on_behalf_of is not None:
+            self._validate_on_behalf_of(on_behalf_of)
 
         if token is not None:
             self._validate_address(token, "token")
         if destination is not None:
             self._validate_address(destination, "destination")
+        if on_behalf_of is None and destination is None:
+            raise ValueError("on_behalf_of or destination is required for withdraw")
 
         payload = WithdrawServerWalletInput(
             amount=amount,

@@ -1,6 +1,7 @@
 """Partner-account creation service."""
 
 from typing import Optional
+from urllib.parse import quote
 
 from ..api.http_client import HttpClient
 from ..types.logger import ILogger, NoOpLogger
@@ -9,6 +10,8 @@ from ..types.partner_accounts import (
     CreatePartnerAccountInput,
     PartnerAccountAllowanceResponse,
     PartnerAccountResponse,
+    PartnerWithdrawalAddressInput,
+    PartnerWithdrawalAddressResponse,
 )
 
 
@@ -109,6 +112,56 @@ class PartnerAccountService:
 
         response = await self._http_client.post(f"{path}/retry", {})
         return PartnerAccountAllowanceResponse(**response)
+
+    async def add_withdrawal_address(
+        self,
+        identity_token: str,
+        payload: PartnerWithdrawalAddressInput,
+    ) -> PartnerWithdrawalAddressResponse:
+        """Add an active partner withdrawal destination allowlist entry.
+
+        This endpoint uses Privy identity-token auth. API-token auth is not used
+        for withdrawal-address allowlist management.
+        """
+
+        if not identity_token:
+            raise ValueError("identity_token is required for add_withdrawal_address")
+        if not payload.address:
+            raise ValueError("address is required for add_withdrawal_address")
+
+        self._logger.debug(
+            "Adding partner withdrawal address",
+            {"address": payload.address},
+        )
+
+        response = await self._http_client.post_with_identity(
+            "/portfolio/withdrawal-addresses",
+            identity_token,
+            payload.model_dump(by_alias=True, exclude_none=True),
+        )
+        return PartnerWithdrawalAddressResponse(**response)
+
+    async def delete_withdrawal_address(
+        self,
+        identity_token: str,
+        address: str,
+    ) -> None:
+        """Remove a partner withdrawal destination allowlist entry."""
+
+        if not identity_token:
+            raise ValueError("identity_token is required for delete_withdrawal_address")
+        if not address:
+            raise ValueError("address is required for delete_withdrawal_address")
+
+        self._logger.debug(
+            "Deleting partner withdrawal address",
+            {"address": address},
+        )
+
+        await self._http_client.delete_with_identity(
+            f"/portfolio/withdrawal-addresses/{quote(address, safe='')}",
+            identity_token,
+        )
 
     def _require_allowance_hmac_auth(self, operation: str) -> None:
         self._http_client.require_auth(operation)

@@ -344,6 +344,32 @@ class RetryableClient:
 
         return await _delete()
 
+    async def delete_with_identity(
+        self,
+        path: str,
+        identity_token: str,
+        **kwargs,
+    ) -> Any:
+        """DELETE request with identity-token auth and retry logic."""
+
+        @retry_on_errors(
+            status_codes=self._config.status_codes,
+            max_retries=self._config.max_retries,
+            delays=self._config.delays,
+            exponential_base=self._config.exponential_base,
+            max_delay=self._config.max_delay,
+            logger=self._logger,
+            on_retry=self._config.on_retry,
+        )
+        async def _delete_with_identity():
+            return await self._client.delete_with_identity(
+                path,
+                identity_token,
+                **kwargs,
+            )
+
+        return await _delete_with_identity()
+
     async def close(self) -> None:
         """Close the underlying HTTP client."""
         await self._client.close()

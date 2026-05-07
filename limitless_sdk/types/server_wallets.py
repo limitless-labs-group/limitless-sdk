@@ -15,10 +15,18 @@ class RedeemServerWalletInput(BaseModel):
 
 
 class WithdrawServerWalletInput(BaseModel):
-    """POST /portfolio/withdraw payload for server-managed wallets."""
+    """POST /portfolio/withdraw payload for server-managed wallets.
+
+    ``destination`` is optional. When omitted for a child server-wallet
+    withdrawal, the API defaults to the authenticated partner smart wallet when
+    present, otherwise the authenticated partner account. Explicit destinations
+    must be the authenticated partner account, authenticated partner smart
+    wallet, or an active withdrawal address allowlisted on the authenticated
+    partner profile.
+    """
 
     amount: str
-    on_behalf_of: int = Field(alias="onBehalfOf")
+    on_behalf_of: Optional[int] = Field(None, alias="onBehalfOf")
     token: Optional[str] = None
     destination: Optional[str] = None
 
