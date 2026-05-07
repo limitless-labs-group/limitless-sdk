@@ -32,6 +32,28 @@ class PartnerAccountResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class PartnerWithdrawalAddressInput(BaseModel):
+    """Request payload for adding a partner withdrawal destination allowlist entry."""
+
+    address: str
+    label: Optional[str] = None
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class PartnerWithdrawalAddressResponse(BaseModel):
+    """Response returned after adding a partner withdrawal destination allowlist entry."""
+
+    id: str
+    profile_id: int = Field(alias="profileId")
+    destination_address: str = Field(alias="destinationAddress")
+    label: str
+    created_at: str = Field(alias="createdAt")
+    deleted_at: Optional[str] = Field(None, alias="deletedAt")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 PartnerAccountAllowanceTypeUsdcAllowance = "USDC_ALLOWANCE"
 PartnerAccountAllowanceTypeCtfApproval = "CTF_APPROVAL"
 

@@ -39,7 +39,12 @@ SubscriptionChannel = Literal[
     "prices",
     "subscribe_market_prices",
     "subscribe_positions",
-    "subscribe_transactions"
+    "subscribe_transactions",
+    "subscribe_order_events",
+    "subscribe_live_sports",
+    "subscribe_live_esports",
+    "subscribe_market_lifecycle",
+    "unsubscribe_market_lifecycle",
 ]
 
 
@@ -270,6 +275,106 @@ class NewPriceData(TypedDict):
     timestamp: Union[str, int, Any]  # API sends Date, can be string or number after serialization
 
 
+class OraclePriceData(TypedDict):
+    """Oracle price update event.
+
+    Attributes:
+        marketAddress: Market contract address when available
+        marketSlug: Market slug identifier
+        timestamp: Unix timestamp in milliseconds
+        value: Oracle price value
+    """
+    marketAddress: Optional[str]
+    marketSlug: str
+    timestamp: int
+    value: float
+
+
+class OmeOrderEvent(TypedDict, total=False):
+    """OME order lifecycle event."""
+    clientOrderId: str
+    eventId: int
+    marketId: str
+    orderId: str
+    price: str
+    remainingSize: str
+    side: str
+    source: Literal["OME"]
+    timestamp: str
+    token: str
+    type: Literal["PLACEMENT", "UPDATE", "CANCELLATION"]
+    userId: int
+
+
+class SettlementMakerMatch(TypedDict):
+    """Maker match included in settlement order events."""
+    account: str
+    matchedSize: str
+    orderId: str
+    price: str
+
+
+class SettlementOrderEvent(TypedDict, total=False):
+    """Settlement order lifecycle event."""
+    amountCollateral: str
+    amountContracts: str
+    clientOrderId: str
+    configuredFeeRateBps: int
+    effectiveFeeBps: int
+    eventId: str
+    feeAmountCollateral: str
+    feeAmountContracts: str
+    makerMatches: List[SettlementMakerMatch]
+    marketSlug: str
+    orderId: str
+    price: str
+    side: str
+    source: Literal["SETTLEMENT"]
+    takerAccount: str
+    takerOrderId: str
+    timestamp: Union[str, int, Any]
+    tokenId: str
+    tradeEventId: str
+    txHash: str
+    type: Literal["MINED", "FAILED"]
+
+
+OrderEvent = Union[OmeOrderEvent, SettlementOrderEvent]
+
+
+class LiveSportsMatchData(TypedDict):
+    """Live sports match data."""
+    awayScore: Optional[int]
+    elapsedMinutes: Optional[int]
+    extraMinutes: Optional[int]
+    fixtureId: int
+    homeScore: Optional[int]
+    isFinished: bool
+    statusShort: str
+
+
+LiveSportsUpdate = Dict[str, LiveSportsMatchData]
+
+
+class LiveEsportsMatchScore(TypedDict):
+    """Live esports match score."""
+    away: int
+    home: int
+
+
+class LiveEsportsMatchData(TypedDict, total=False):
+    """Live esports match data."""
+    gameScores: List[LiveEsportsMatchScore]
+    isFinished: bool
+    matchId: int
+    matchScore: LiveEsportsMatchScore
+    status: str
+
+
+LiveEsportsUpdate = Dict[str, LiveEsportsMatchData]
+SystemEvent = Union[str, Dict[str, Any]]
+
+
 class TransactionEvent(TypedDict, total=False):
     """Transaction event (blockchain transaction status).
 
@@ -351,9 +456,14 @@ FillHandler = Callable[[FillEvent], None]
 MarketHandler = Callable[[MarketUpdate], None]
 PriceHandler = Callable[[PriceUpdate], None]
 NewPriceDataHandler = Callable[[NewPriceData], None]
+OraclePriceDataHandler = Callable[[OraclePriceData], None]
 TransactionHandler = Callable[[TransactionEvent], None]
 MarketCreatedHandler = Callable[[MarketCreatedEvent], None]
 MarketResolvedHandler = Callable[[MarketResolvedEvent], None]
+OrderEventHandler = Callable[[OrderEvent], None]
+LiveSportsUpdateHandler = Callable[[LiveSportsUpdate], None]
+LiveEsportsUpdateHandler = Callable[[LiveEsportsUpdate], None]
+SystemHandler = Callable[[SystemEvent], None]
 
 
 class WebSocketEvents(TypedDict, total=False):
@@ -375,12 +485,17 @@ class WebSocketEvents(TypedDict, total=False):
     reconnecting: ReconnectingHandler
     orderbookUpdate: OrderbookHandler  # API event name is orderbookUpdate (camelCase)
     newPriceData: NewPriceDataHandler  # API event name is newPriceData (camelCase)
+    oraclePriceData: OraclePriceDataHandler  # API event name is oraclePriceData (camelCase)
     trade: TradeHandler
     order: OrderHandler
+    orderEvent: OrderEventHandler
     fill: FillHandler
     market: MarketHandler
     marketCreated: MarketCreatedHandler
     marketResolved: MarketResolvedHandler
+    live_sports_update: LiveSportsUpdateHandler
+    live_esports_update: LiveEsportsUpdateHandler
+    system: SystemHandler
     price: PriceHandler  # Deprecated - use newPriceData
     positions: Any  # Position update handler
     tx: TransactionHandler

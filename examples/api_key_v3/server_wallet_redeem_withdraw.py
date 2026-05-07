@@ -5,6 +5,7 @@ import os
 
 from limitless_sdk import (
     CreatePartnerAccountInput,
+    PartnerWithdrawalAddressInput,
     ScopeAccountCreation,
     ScopeDelegatedSigning,
     ScopeTrading,
@@ -100,11 +101,46 @@ async def main() -> None:
             )
             return
 
+        amount = require_env("LIMITLESS_WITHDRAW_AMOUNT")
+        destination = os.getenv("LIMITLESS_WITHDRAW_DESTINATION")
+        allowlist_destination = truthy_env("LIMITLESS_ALLOWLIST_WITHDRAW_DESTINATION")
+        destination_label = os.getenv("LIMITLESS_WITHDRAW_DESTINATION_LABEL", "treasury")
+        token = os.getenv("LIMITLESS_WITHDRAW_TOKEN")
+
+        print(
+            "Withdrawing:",
+            f"amount={amount}",
+            f"token={token or '(default token)'}",
+            "destination="
+            f"{destination or '(default: authenticated smart wallet when present, otherwise account)'}",
+        )
+
+        if destination and allowlist_destination:
+            print(
+                "Allowlisting withdraw destination:",
+                f"destination={destination}",
+                f"label={destination_label}",
+            )
+            withdrawal_address = await bootstrap.partner_accounts.add_withdrawal_address(
+                identity_token,
+                PartnerWithdrawalAddressInput(
+                    address=destination,
+                    label=destination_label,
+                ),
+            )
+            print(
+                "Withdrawal destination allowlisted:",
+                f"id={withdrawal_address.id}",
+                f"profile_id={withdrawal_address.profile_id}",
+                f"destination={withdrawal_address.destination_address}",
+                f"label={withdrawal_address.label}",
+            )
+
         withdraw_response = await scoped.server_wallets.withdraw(
-            amount=require_env("LIMITLESS_WITHDRAW_AMOUNT"),
+            amount=amount,
             on_behalf_of=account_profile_id,
-            token=os.getenv("LIMITLESS_WITHDRAW_TOKEN"),
-            destination=os.getenv("LIMITLESS_WITHDRAW_DESTINATION"),
+            token=token,
+            destination=destination,
         )
         print(
             "Withdraw submitted:",

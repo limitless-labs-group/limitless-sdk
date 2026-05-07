@@ -12,7 +12,7 @@ Example:
     >>> markets = await market_fetcher.get_markets()
 """
 
-__version__ = "1.0.8"
+__version__ = "1.0.9"
 
 # API layer - HTTP client and error handling
 from .api import (
@@ -130,6 +130,8 @@ from .types import (
     CreatePartnerAccountInput,
     CreatePartnerAccountEOAHeaders,
     PartnerAccountResponse,
+    PartnerWithdrawalAddressInput,
+    PartnerWithdrawalAddressResponse,
     PartnerAccountAllowanceTypeUsdcAllowance,
     PartnerAccountAllowanceTypeCtfApproval,
     PartnerAccountAllowanceRequiredForBuy,
@@ -294,6 +296,8 @@ __all__ = [
     "CreatePartnerAccountInput",
     "CreatePartnerAccountEOAHeaders",
     "PartnerAccountResponse",
+    "PartnerWithdrawalAddressInput",
+    "PartnerWithdrawalAddressResponse",
     "PartnerAccountAllowanceTypeUsdcAllowance",
     "PartnerAccountAllowanceTypeCtfApproval",
     "PartnerAccountAllowanceRequiredForBuy",

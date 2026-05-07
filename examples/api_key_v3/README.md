@@ -13,6 +13,8 @@ Partner-facing examples for:
 - delegated `POST /orders` with `FAK`
 - `POST /portfolio/redeem`
 - `POST /portfolio/withdraw`
+- `POST /portfolio/withdrawal-addresses`
+- `DELETE /portfolio/withdrawal-addresses/:address`
 - delegated cancel by id / cancel all
 - WebSocket auth with HMAC-scoped tokens
 
@@ -38,6 +40,8 @@ export LIMITLESS_SKIP_ALLOWANCE_RETRY=1
 export LIMITLESS_PARTNER_ACCOUNT_PROFILE_ID=
 export LIMITLESS_WITHDRAW_AMOUNT=
 export LIMITLESS_WITHDRAW_DESTINATION=
+export LIMITLESS_ALLOWLIST_WITHDRAW_DESTINATION=0
+export LIMITLESS_WITHDRAW_DESTINATION_LABEL=treasury
 export LIMITLESS_WITHDRAW_TOKEN=
 export LIMITLESS_ON_BEHALF_OF=
 export LIMITLESS_SERVER_WALLET_ACCOUNT=
@@ -67,4 +71,7 @@ python examples/api_key_v3/websocket_hmac.py
 - The server-wallet redeem/withdraw example is only for child accounts created with `create_server_wallet=True`.
 - `LIMITLESS_ON_BEHALF_OF` lets the redeem/withdraw example target an existing child profile that already holds resolved positions.
 - `LIMITLESS_SKIP_WITHDRAW=1` is the safe default; set it to `0` and provide `LIMITLESS_WITHDRAW_AMOUNT` to run the withdraw step.
+- If `LIMITLESS_WITHDRAW_DESTINATION` is omitted for a child server-wallet withdraw, the API withdraws to the authenticated partner smart wallet when present, otherwise the authenticated partner account.
+- If `LIMITLESS_WITHDRAW_DESTINATION` is set, the address must be the authenticated partner account, authenticated partner smart wallet, or an active withdrawal address allowlisted on the authenticated partner profile.
+- Set `LIMITLESS_ALLOWLIST_WITHDRAW_DESTINATION=1` to add or reuse `LIMITLESS_WITHDRAW_DESTINATION` with Privy identity auth before the HMAC withdraw request. The identity token must belong to the same partner profile as the HMAC token.
 - In partner-account EOA mode, the wallet you prove with `x-account` / `x-signature` is the child account being linked. It must be different from the parent partner profile account.

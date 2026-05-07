@@ -397,6 +397,20 @@ class HttpClient:
             headers={"identity": f"Bearer {identity_token}"},
         )
 
+    async def delete_with_identity(
+        self,
+        path: str,
+        identity_token: str,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> Any:
+        if not identity_token:
+            raise ValueError("identity_token is required")
+        return await self.delete(
+            path,
+            params=params,
+            headers={"identity": f"Bearer {identity_token}"},
+        )
+
     async def post_with_headers(
         self,
         path: str,

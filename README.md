@@ -1,10 +1,10 @@
 # Limitless Exchange Python SDK
 
-**v1.0.8** | Async | Type-Safe | Partner HMAC Support
+**v1.0.9** | Async | Type-Safe | Partner HMAC Support
 
 A minimalistic, async Python SDK for interacting with the Limitless Exchange API.
 
-> **v1.0.8 Release**: Adds partner server-wallet allowance recovery helpers, live-chain retry semantics, and a runnable partner allowance example. See [CHANGELOG.md](./CHANGELOG.md) for release notes.
+> **v1.0.9 Release**: Adds partner withdrawal-address allowlist helpers and documents server-wallet withdrawals to explicit treasury destinations. See [CHANGELOG.md](./CHANGELOG.md) for release notes.
 
 ## Features
 
@@ -17,7 +17,7 @@ A minimalistic, async Python SDK for interacting with the Limitless Exchange API
 - 💼 **Portfolio tracking** - Positions and user history
 - 🔄 **Automatic retries** - Configurable retry logic with error handling
 - 🌐 **WebSocket support** - Real-time orderbook updates
-- 🤝 **Partner account + delegated trading helpers** - Server-wallet child accounts, delegated GTC/FAK/FOK order flows, and server-wallet redeem/withdraw
+- 🤝 **Partner account + delegated trading helpers** - Server-wallet child accounts, delegated GTC/FAK/FOK order flows, and server-wallet redeem/withdraw to account, smart wallet, or whitelisted treasury destinations
 - 🛡️ **Custom headers** - Global and per-request header configuration
 - ⚡ **Async/await support** - Modern async Python with aiohttp
 - 🚀 **Venue caching** - Automatic contract address caching for optimized order creation
@@ -173,6 +173,8 @@ Partner surface added by this flow:
 - `partner_accounts.create_account()`
 - `partner_accounts.check_allowances()`
 - `partner_accounts.retry_allowances()`
+- `partner_accounts.add_withdrawal_address()`
+- `partner_accounts.delete_withdrawal_address()`
 - `delegated_orders.create_order()`
 - `delegated_orders.cancel_on_behalf_of()`
 - `delegated_orders.cancel_all_on_behalf_of()`
@@ -241,8 +243,12 @@ Use `client.server_wallets` only for server-managed wallets created in delegated
 - `withdraw()` calls `POST /portfolio/withdraw`
 - both operations require HMAC-scoped API-token auth
 - `withdraw()` also requires the `withdrawal` scope
-- `on_behalf_of` should be the delegated child profile id
+- set `on_behalf_of` to the delegated child profile id when withdrawing child server-wallet funds
+- omit `on_behalf_of` only when withdrawing the authenticated caller's own server wallet to an explicit `destination`
 - `amount` for withdraw must be provided in the token smallest unit
+- omit `destination` to use the API default: authenticated partner smart wallet when present, otherwise authenticated partner account
+- pass `destination` to withdraw directly to the authenticated partner account, authenticated partner smart wallet, or an active withdrawal address allowlisted on the authenticated partner profile
+- `partner_accounts.add_withdrawal_address()` and `partner_accounts.delete_withdrawal_address()` manage the allowlist with Privy identity-token auth; API-token auth is not used for those allowlist endpoints
 - in practice, redeem is most useful for an existing child profile that already traded in a now-resolved market
 
 ```python
@@ -277,6 +283,36 @@ async def main():
 
 
 asyncio.run(main())
+```
+
+To withdraw a partner child server wallet directly to a treasury address, allowlist the destination on the authenticated partner profile first. Use the same partner identity for the allowlist call and the same partner HMAC token for the withdraw call.
+
+```python
+from limitless_sdk import PartnerWithdrawalAddressInput
+
+identity_token = "privy-identity-token"
+treasury_address = "0x0F3262730c909408042F9Da345a916dc0e1F9787"
+
+await client.partner_accounts.add_withdrawal_address(
+    identity_token,
+    PartnerWithdrawalAddressInput(address=treasury_address, label="treasury"),
+)
+
+treasury_withdraw = await client.server_wallets.withdraw(
+    amount="5000000",
+    on_behalf_of=352,
+    destination=treasury_address,
+)
+
+own_wallet_withdraw = await client.server_wallets.withdraw(
+    amount="5000000",
+    destination=treasury_address,
+)
+
+await client.partner_accounts.delete_withdrawal_address(
+    identity_token,
+    treasury_address,
+)
 ```
 
 `redeem.hash` or `withdraw.hash` may be an empty string for user-operation submissions. Track those calls using `user_operation_hash` or `transaction_id`.
@@ -841,6 +877,18 @@ points = positions['accumulativePoints']
   ```
 
 ## Changelog
+
+### v1.0.9
+
+**Release Date**: May 4, 2026
+
+Latest release with partner withdrawal-address allowlist helpers and server-wallet withdrawals to explicit whitelisted treasury destinations.
+
+#### Highlights
+
+- **Partner withdrawal allowlists**: `partner_accounts.add_withdrawal_address()` and `delete_withdrawal_address()` use Privy identity auth for `/portfolio/withdrawal-addresses`.
+- **Treasury withdrawals**: `server_wallets.withdraw()` supports child server-wallet withdrawals to allowlisted destinations and caller-wallet withdrawals with `destination` only.
+- **Docs and examples**: API-key-v3 docs and `server_wallet_redeem_withdraw.py` cover optional destination allowlisting before HMAC withdraw.
 
 ### v1.0.0
 

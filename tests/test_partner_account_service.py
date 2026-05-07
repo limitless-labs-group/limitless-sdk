@@ -9,6 +9,7 @@ from limitless_sdk.partner_accounts import PartnerAccountService
 from limitless_sdk.types import (
     CreatePartnerAccountEOAHeaders,
     CreatePartnerAccountInput,
+    PartnerWithdrawalAddressInput,
 )
 
 ALLOWANCE_RESPONSE = {
@@ -39,6 +40,15 @@ ALLOWANCE_RESPONSE = {
             "retryable": False,
         }
     ],
+}
+
+WITHDRAWAL_ADDRESS_RESPONSE = {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "profileId": 1292711,
+    "destinationAddress": "0x0F3262730c909408042F9Da345a916dc0e1F9787",
+    "label": "treasury",
+    "createdAt": "2026-04-30T12:00:00.000Z",
+    "deletedAt": None,
 }
 
 
@@ -181,6 +191,53 @@ async def test_retry_allowances_posts_empty_body():
 
 
 @pytest.mark.asyncio
+async def test_add_withdrawal_address_uses_identity_auth():
+    http_client = Mock()
+    http_client.post_with_identity = AsyncMock(return_value=WITHDRAWAL_ADDRESS_RESPONSE)
+
+    service = PartnerAccountService(http_client)
+    response = await service.add_withdrawal_address(
+        "identity-token",
+        PartnerWithdrawalAddressInput(
+            address="0x0F3262730c909408042F9Da345a916dc0e1F9787",
+            label="treasury",
+        ),
+    )
+
+    http_client.post_with_identity.assert_awaited_once_with(
+        "/portfolio/withdrawal-addresses",
+        "identity-token",
+        {
+            "address": "0x0F3262730c909408042F9Da345a916dc0e1F9787",
+            "label": "treasury",
+        },
+    )
+    assert response.id == "11111111-1111-4111-8111-111111111111"
+    assert response.profile_id == 1292711
+    assert (
+        response.destination_address
+        == "0x0F3262730c909408042F9Da345a916dc0e1F9787"
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_withdrawal_address_uses_identity_auth():
+    http_client = Mock()
+    http_client.delete_with_identity = AsyncMock(return_value=None)
+
+    service = PartnerAccountService(http_client)
+    await service.delete_withdrawal_address(
+        "identity-token",
+        "0x0F3262730c909408042F9Da345a916dc0e1F9787",
+    )
+
+    http_client.delete_with_identity.assert_awaited_once_with(
+        "/portfolio/withdrawal-addresses/0x0F3262730c909408042F9Da345a916dc0e1F9787",
+        "identity-token",
+    )
+
+
+@pytest.mark.asyncio
 async def test_retry_allowances_propagates_rate_limit_and_conflict_errors():
     rate_limit_error = RateLimitError(
         "rate limited",
@@ -235,6 +292,53 @@ async def test_allowances_reject_invalid_profile_id_before_network():
 
     http_client.get.assert_not_awaited()
     http_client.post.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_withdrawal_address_methods_reject_invalid_inputs_before_network():
+    http_client = Mock()
+    http_client.post_with_identity = AsyncMock()
+    http_client.delete_with_identity = AsyncMock()
+
+    service = PartnerAccountService(http_client)
+
+    with pytest.raises(
+        ValueError,
+        match="identity_token is required for add_withdrawal_address",
+    ):
+        await service.add_withdrawal_address(
+            "",
+            PartnerWithdrawalAddressInput(
+                address="0x0F3262730c909408042F9Da345a916dc0e1F9787",
+            ),
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="address is required for add_withdrawal_address",
+    ):
+        await service.add_withdrawal_address(
+            "identity-token",
+            PartnerWithdrawalAddressInput(address=""),
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="identity_token is required for delete_withdrawal_address",
+    ):
+        await service.delete_withdrawal_address(
+            "",
+            "0x0F3262730c909408042F9Da345a916dc0e1F9787",
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="address is required for delete_withdrawal_address",
+    ):
+        await service.delete_withdrawal_address("identity-token", "")
+
+    http_client.post_with_identity.assert_not_awaited()
+    http_client.delete_with_identity.assert_not_awaited()
 
 
 @pytest.mark.asyncio

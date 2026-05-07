@@ -117,3 +117,4 @@ async def test_websocket_authenticated_subscription_allows_hmac_without_api_key(
     client._state = WebSocketState.CONNECTED
 
     await client.subscribe("subscribe_positions", {"marketSlugs": ["market-1"]})
+    await client.subscribe("subscribe_order_events")
