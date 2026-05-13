@@ -46,10 +46,29 @@ class _FakeAsyncClient:
 @pytest.mark.asyncio
 async def test_websocket_connect_uses_hmac_headers(monkeypatch):
     fake_client = _FakeAsyncClient()
+    client_kwargs = {}
+    signature_calls = []
 
+    def fake_async_client(*args, **kwargs):
+        client_kwargs.update(kwargs)
+        return fake_client
+
+    def fake_compute_hmac_signature(secret, timestamp, method, path, body):
+        signature_calls.append(
+            {
+                "secret": secret,
+                "timestamp": timestamp,
+                "method": method,
+                "path": path,
+                "body": body,
+            }
+        )
+        return "signature-123"
+
+    monkeypatch.setattr("limitless_sdk.websocket.client.AsyncClient", fake_async_client)
     monkeypatch.setattr(
-        "limitless_sdk.websocket.client.AsyncClient",
-        lambda *args, **kwargs: fake_client,
+        "limitless_sdk.websocket.client.compute_hmac_signature",
+        fake_compute_hmac_signature,
     )
     monkeypatch.setattr(
         "limitless_sdk.websocket.client._build_iso_timestamp",
@@ -69,12 +88,22 @@ async def test_websocket_connect_uses_hmac_headers(monkeypatch):
     await client.connect()
 
     assert client.state == WebSocketState.CONNECTED
+    assert client_kwargs["timestamp_requests"] is False
+    assert signature_calls == [
+        {
+            "secret": "c2VjcmV0",
+            "timestamp": "2026-03-30T12:00:00.000Z",
+            "method": "GET",
+            "path": "/socket.io/?transport=websocket&EIO=4",
+            "body": "",
+        }
+    ]
     headers = fake_client.connect_calls[0]["headers"]
     assert headers["x-sdk-version"].startswith("lmts-sdk-py/")
     assert headers["user-agent"].startswith("lmts-sdk-py/")
     assert "python/" in headers["user-agent"]
     assert headers["lmts-api-key"] == "token-123"
-    assert "lmts-signature" in headers
+    assert headers["lmts-signature"] == "signature-123"
     assert "X-API-Key" not in headers
 
 
