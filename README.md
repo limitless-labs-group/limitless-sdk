@@ -1,10 +1,10 @@
 # Limitless Exchange Python SDK
 
-**v1.0.9** | Async | Type-Safe | Partner HMAC Support
+**v1.0.10** | Async | Type-Safe | Partner HMAC Support
 
 A minimalistic, async Python SDK for interacting with the Limitless Exchange API.
 
-> **v1.0.9 Release**: Adds partner withdrawal-address allowlist helpers and documents server-wallet withdrawals to explicit treasury destinations. See [CHANGELOG.md](./CHANGELOG.md) for release notes.
+> **v1.0.10 Release**: Fixes HMAC authentication for authenticated WebSocket subscriptions. See [CHANGELOG.md](./CHANGELOG.md) for release notes.
 
 ## Features
 
@@ -878,11 +878,22 @@ points = positions['accumulativePoints']
 
 ## Changelog
 
+### v1.0.10
+
+**Release Date**: May 12, 2026
+
+Latest release with authenticated WebSocket HMAC fixes for Python Socket.IO clients.
+
+#### Highlights
+
+- **WebSocket HMAC auth**: Authenticated subscriptions now sign the Engine.IO WebSocket path emitted by `python-engineio`.
+- **Stable WebSocket upgrade URL**: Socket.IO timestamp cache-buster query parameters are disabled for WebSocket connections.
+
 ### v1.0.9
 
 **Release Date**: May 4, 2026
 
-Latest release with partner withdrawal-address allowlist helpers and server-wallet withdrawals to explicit whitelisted treasury destinations.
+Release with partner withdrawal-address allowlist helpers and server-wallet withdrawals to explicit whitelisted treasury destinations.
 
 #### Highlights
 

@@ -206,6 +206,7 @@ class WebSocketClient:
                 self._sio = AsyncClient(
                     logger=False,  # Disable Socket.IO logger (we use our own)
                     engineio_logger=False,
+                    timestamp_requests=False,
                     reconnection=self._config.auto_reconnect,
                     reconnection_delay=self._config.reconnect_delay,
                     reconnection_delay_max=min(self._config.reconnect_delay * 32, 60),  # Max 60s
@@ -232,7 +233,7 @@ class WebSocketClient:
                             self._config.hmac_credentials.secret,
                             timestamp,
                             "GET",
-                            "/socket.io/?EIO=4&transport=websocket",
+                            "/socket.io/?transport=websocket&EIO=4",
                             "",
                         ),
                     })
