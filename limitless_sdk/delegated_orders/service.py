@@ -5,6 +5,7 @@ from urllib.parse import quote
 
 from ..api.http_client import HttpClient
 from ..orders.builder import OrderBuilder
+from ..orders.receive_window import normalize_receive_window_options
 from ..types.delegated_orders import (
     CancelResponse,
     CreateDelegatedOrderRequest,
@@ -39,11 +40,18 @@ class DelegatedOrderService:
         taker: Optional[str] = None,
         fee_rate_bps: Optional[int] = None,
         post_only: Optional[bool] = None,
+        timestamp: Optional[int] = None,
+        recv_window: Optional[int] = None,
     ) -> OrderResponse:
         self._http_client.require_auth("create_delegated_order")
 
         if not isinstance(on_behalf_of, int) or on_behalf_of <= 0:
             raise ValueError("on_behalf_of must be a positive integer")
+
+        receive_window = normalize_receive_window_options(
+            timestamp=timestamp,
+            recv_window=recv_window,
+        )
 
         effective_fee_rate_bps = (
             fee_rate_bps
@@ -90,6 +98,7 @@ class DelegatedOrderService:
             owner_id=on_behalf_of,
             on_behalf_of=on_behalf_of,
             post_only=post_only if order_type == OrderType.GTC else None,
+            **receive_window,
         )
 
         self._logger.debug(

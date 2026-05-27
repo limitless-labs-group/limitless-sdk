@@ -5,6 +5,22 @@ All notable changes to the Limitless Exchange Python SDK will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.12]
+
+### Added
+
+- Optional receive-window controls for normal, delegated, and legacy order creation:
+  - `timestamp`
+  - `recv_window`, serialized as top-level `recvWindow`
+- Public `ReceiveWindowOptions` model for order receive-window parameters.
+- Public `normalize_receive_window_options()` helper for validation and auto-stamping.
+- Unit coverage for omitted defaults, top-level-only payloads, automatic timestamp stamping, and invalid receive-window values.
+
+### Changed
+
+- `recv_window` is optional and omitted by default. When supplied without `timestamp`, the SDK sends the current Unix timestamp in milliseconds.
+- README, package metadata, lockfile, and runtime `__version__` now target `v1.0.12`.
+
 ## [1.0.11]
 
 ### Added

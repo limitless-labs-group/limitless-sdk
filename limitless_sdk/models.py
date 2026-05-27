@@ -49,6 +49,8 @@ class CreateOrderDto:
     ownerId: int
     orderType: str
     marketSlug: str
+    timestamp: Optional[int] = None
+    recvWindow: Optional[int] = None
 
 
 @dataclass
@@ -66,4 +68,4 @@ class DeleteOrderBatchDto:
 @dataclass
 class MarketSlugValidator:
     """Validator for market slugs."""
-    slug: str 
+    slug: str

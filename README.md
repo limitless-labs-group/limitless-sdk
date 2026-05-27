@@ -1,10 +1,10 @@
 # Limitless Exchange Python SDK
 
-**v1.0.11** | Async | Type-Safe | Partner HMAC Support
+**v1.0.12** | Async | Type-Safe | Partner HMAC Support
 
 A minimalistic, async Python SDK for interacting with the Limitless Exchange API.
 
-> **v1.0.11 Release**: Adds authenticated profile reads via `/profiles/me`, partner sub-account listing/recovery, and WebSocket subscription validation cleanup. See [CHANGELOG.md](./CHANGELOG.md) for release notes.
+> **v1.0.12 Release**: Adds optional receive-window controls for normal, delegated, and legacy order creation. See [CHANGELOG.md](./CHANGELOG.md) for release notes.
 
 ## Features
 
@@ -12,7 +12,7 @@ A minimalistic, async Python SDK for interacting with the Limitless Exchange API
 - 🔏 **HMAC-scoped partner authentication** - Derived api-token v3 support for partner workflows
 - 📈 **Market data access** - Markets, orderbooks, and historical data
 - 🧭 **Market pages navigation** - Navigation tree, dynamic filters, property keys
-- 📋 **Order management** - GTC, FAK, and FOK orders with automatic signing
+- 📋 **Order management** - GTC, FAK, and FOK orders with automatic signing and optional receive-window freshness checks
 - 🔢 **IEEE-safe order payload parsing** - `create_order()` handles `makerAmount`, `takerAmount`, `price`, and `salt` returned as numeric strings
 - 💼 **Portfolio tracking** - Authenticated current profile reads, positions, and user history
 - 🔄 **Automatic retries** - Configurable retry logic with error handling
@@ -561,6 +561,24 @@ print(f"Order ID: {order.order.id}")
 print(f"Status: {order.order.status}")
 ```
 
+### Optional Receive Window
+
+Order creation can opt into API receive-window freshness checks with `recv_window` and, optionally, `timestamp`. These fields are serialized as top-level `POST /orders` fields named `timestamp` and `recvWindow`; they are not included in the signed EIP-712 order payload.
+
+```python
+order = await order_client.create_order(
+    token_id=token_id,
+    price=0.50,
+    size=5.0,
+    side=Side.BUY,
+    order_type=OrderType.GTC,
+    market_slug=market.slug,
+    recv_window=1500,
+)
+```
+
+If omitted, no receive-window fields are sent. `recv_window` must be between `1` and `10000` milliseconds. When `recv_window` is supplied without `timestamp`, the SDK stamps the current Unix time in milliseconds. Server-side freshness failures are raised as the normal API error response.
+
 ### Create FAK Orders
 
 FAK (Fill-And-Kill) orders use the same `price`/`size` construction as `GTC`, but any unmatched remainder is cancelled immediately instead of resting on the orderbook.
@@ -934,11 +952,23 @@ points = positions['accumulativePoints']
 
 ## Changelog
 
+### v1.0.12
+
+**Release Date**: May 27, 2026
+
+Latest release with optional receive-window controls for order creation.
+
+#### Highlights
+
+- **Order Receive Window**: `create_order()` accepts optional `recv_window` and `timestamp` parameters for normal, delegated, and legacy order creation.
+- **Top-Level Payload Fields**: The SDK sends `timestamp` and `recvWindow` at the `POST /orders` payload root only; signed order bodies stay unchanged.
+- **Validation**: `recv_window` is capped to `1..10000` milliseconds and auto-stamps a millisecond timestamp when `timestamp` is omitted.
+
 ### v1.0.11
 
 **Release Date**: May 27, 2026
 
-Latest release with authenticated profile reads, partner sub-account listing/recovery, and WebSocket subscription validation cleanup.
+Release with authenticated profile reads, partner sub-account listing/recovery, and WebSocket subscription validation cleanup.
 
 #### Highlights
 

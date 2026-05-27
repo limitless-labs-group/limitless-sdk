@@ -327,10 +327,18 @@ class LimitlessClient:
         side: int,  # 0 for BUY, 1 for SELL
         amount: float,  # Amount in USDC
         price: float,  # Price between 0 and 1
-        order_type: str = "GTC"
+        order_type: str = "GTC",
+        timestamp: Optional[int] = None,
+        recv_window: Optional[int] = None,
     ) -> "CreateOrderDto":
         """Create a properly constructed CreateOrderDto."""
         from .models import Order, CreateOrderDto, SignatureType
+        from .orders.receive_window import normalize_receive_window_options
+
+        receive_window = normalize_receive_window_options(
+            timestamp=timestamp,
+            recv_window=recv_window,
+        )
         
         # Get user profile to obtain ownerId
         user_profile = await self.get_user_profile()
@@ -343,7 +351,6 @@ class LimitlessClient:
         
         # Generate order parameters
         salt = self._generate_salt()
-        current_time = self._get_current_timestamp()
         expiration = "0"  # Use "0" for no expiration like the UI
         nonce = 0
         
@@ -398,7 +405,9 @@ class LimitlessClient:
             order=order,
             ownerId=owner_id,
             orderType=order_type,
-            marketSlug=market_slug
+            marketSlug=market_slug,
+            timestamp=receive_window.get("timestamp"),
+            recvWindow=receive_window.get("recv_window"),
         )
         
         return create_order_dto
@@ -615,6 +624,10 @@ class LimitlessClient:
         # Convert dataclass to dict for API request
         from dataclasses import asdict
         payload = asdict(create_order_dto)
+        if payload.get("timestamp") is None:
+            payload.pop("timestamp", None)
+        if payload.get("recvWindow") is None:
+            payload.pop("recvWindow", None)
         
         async with self.session.post(url, json=payload) as response:
             if response.status == 201:

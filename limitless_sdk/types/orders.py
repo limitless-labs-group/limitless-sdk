@@ -219,6 +219,8 @@ class CreateOrderDto(BaseModel):
         market_slug: Market slug identifier
         post_only: Optional. When true, rejects the order if it would immediately match.
             Supported only for GTC orders. Defaults to false when omitted.
+        timestamp: Optional client-stamped Unix milliseconds for receive-window checks.
+        recv_window: Optional maximum order staleness in milliseconds.
     """
 
     order: SignedOrder
@@ -226,6 +228,8 @@ class CreateOrderDto(BaseModel):
     order_type: str = Field(alias="orderType")
     market_slug: str = Field(alias="marketSlug")
     post_only: Optional[bool] = Field(None, alias="postOnly")
+    timestamp: Optional[int] = None
+    recv_window: Optional[int] = Field(None, alias="recvWindow")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -236,6 +240,19 @@ class CreateOrderDto(BaseModel):
         if 'order' in data and isinstance(self.order, SignedOrder):
             data['order'] = self.order.model_dump(**kwargs)
         return data
+
+
+class ReceiveWindowOptions(BaseModel):
+    """Optional receive-window controls for order creation.
+
+    These fields are serialized as top-level ``POST /orders`` request fields.
+    They are not part of the EIP-712 signed order payload.
+    """
+
+    timestamp: Optional[int] = None
+    recv_window: Optional[int] = Field(None, alias="recvWindow")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class CancelOrderDto(BaseModel):

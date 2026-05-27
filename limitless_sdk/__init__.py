@@ -12,7 +12,7 @@ Example:
     >>> markets = await market_fetcher.get_markets()
 """
 
-__version__ = "1.0.11"
+__version__ = "1.0.12"
 
 # API layer - HTTP client and error handling
 from .api import (
@@ -46,6 +46,7 @@ from .orders import (
     OrderBuilder,
     OrderSigner,
     OrderClient,
+    normalize_receive_window_options,
 )
 
 # WebSocket module
@@ -116,6 +117,7 @@ from .types import (
     CancelOrderDto,
     DeleteOrderBatchDto,
     MarketSlugValidator,
+    ReceiveWindowOptions,
     OrderSigningConfig,
     OrderArgs,
     MakerMatch,
@@ -229,6 +231,7 @@ __all__ = [
     "OrderBuilder",
     "OrderSigner",
     "OrderClient",
+    "normalize_receive_window_options",
     # WebSocket module
     "WebSocketClient",
     "DEFAULT_WS_URL",
@@ -289,6 +292,7 @@ __all__ = [
     "CancelOrderDto",
     "DeleteOrderBatchDto",
     "MarketSlugValidator",
+    "ReceiveWindowOptions",
     "OrderSigningConfig",
     "OrderArgs",
     "MakerMatch",

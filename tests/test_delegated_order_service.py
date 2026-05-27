@@ -66,7 +66,104 @@ async def test_create_order_builds_zero_address_payload(monkeypatch):
     assert payload["order"]["signer"] == ZERO_ADDRESS
     assert payload["order"]["expiration"] == "0"
     assert payload["order"]["feeRateBps"] == 300
+    assert "timestamp" not in payload
+    assert "recvWindow" not in payload
+    assert "timestamp" not in payload["order"]
+    assert "recvWindow" not in payload["order"]
     assert response.order.maker == ZERO_ADDRESS
+
+
+@pytest.mark.asyncio
+async def test_create_order_sends_receive_window_top_level_only(monkeypatch):
+    http_client = Mock()
+    http_client.require_auth = Mock()
+    http_client.post = AsyncMock(return_value=_order_response_payload())
+    service = DelegatedOrderService(http_client)
+
+    monkeypatch.setattr(
+        "limitless_sdk.orders.builder.OrderBuilder._generate_salt",
+        lambda self: 123,
+    )
+
+    await service.create_order(
+        token_id="123",
+        side=Side.BUY,
+        order_type=OrderType.GTC,
+        market_slug="bitcoin-2026",
+        on_behalf_of=326,
+        price=0.55,
+        size=5.0,
+        timestamp=1_770_000_000_000,
+        recv_window=1500,
+    )
+
+    _, payload = http_client.post.await_args.args
+    assert payload["timestamp"] == 1_770_000_000_000
+    assert payload["recvWindow"] == 1500
+    assert "timestamp" not in payload["order"]
+    assert "recvWindow" not in payload["order"]
+
+
+@pytest.mark.asyncio
+async def test_create_order_auto_stamps_timestamp_with_receive_window(monkeypatch):
+    monkeypatch.setattr(
+        "limitless_sdk.orders.receive_window.time.time",
+        lambda: 1_770_000_000.0,
+    )
+    http_client = Mock()
+    http_client.require_auth = Mock()
+    http_client.post = AsyncMock(return_value=_order_response_payload())
+    service = DelegatedOrderService(http_client)
+
+    monkeypatch.setattr(
+        "limitless_sdk.orders.builder.OrderBuilder._generate_salt",
+        lambda self: 123,
+    )
+
+    await service.create_order(
+        token_id="123",
+        side=Side.BUY,
+        order_type=OrderType.GTC,
+        market_slug="bitcoin-2026",
+        on_behalf_of=326,
+        price=0.55,
+        size=5.0,
+        recv_window=1500,
+    )
+
+    _, payload = http_client.post.await_args.args
+    assert payload["timestamp"] == 1_770_000_000_000
+    assert payload["recvWindow"] == 1500
+
+
+@pytest.mark.asyncio
+async def test_create_order_rejects_invalid_receive_window_before_post(monkeypatch):
+    http_client = Mock()
+    http_client.require_auth = Mock()
+    http_client.post = AsyncMock(return_value=_order_response_payload())
+    service = DelegatedOrderService(http_client)
+
+    monkeypatch.setattr(
+        "limitless_sdk.orders.builder.OrderBuilder._generate_salt",
+        lambda self: 123,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="recv_window must be between 1 and 10000 milliseconds",
+    ):
+        await service.create_order(
+            token_id="123",
+            side=Side.BUY,
+            order_type=OrderType.GTC,
+            market_slug="bitcoin-2026",
+            on_behalf_of=326,
+            price=0.55,
+            size=5.0,
+            recv_window=0,
+        )
+
+    http_client.post.assert_not_called()
 
 
 @pytest.mark.asyncio

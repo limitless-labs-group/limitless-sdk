@@ -19,6 +19,7 @@ from ..utils.constants import ZERO_ADDRESS
 from ..markets.fetcher import MarketFetcher
 from ..portfolio.fetcher import PortfolioFetcher
 from .builder import OrderBuilder
+from .receive_window import normalize_receive_window_options
 from .signer import OrderSigner
 
 
@@ -186,6 +187,8 @@ class OrderClient:
         expiration: Optional[int] = None,
         taker: Optional[str] = None,
         post_only: Optional[bool] = None,
+        timestamp: Optional[int] = None,
+        recv_window: Optional[int] = None,
     ) -> OrderResponse:
         """Create and submit a new order.
 
@@ -210,6 +213,8 @@ class OrderClient:
             taker: Optional taker address
             post_only: Optional. When true, rejects the order if it would immediately match.
                 Supported only for GTC orders. Defaults to false when omitted.
+            timestamp: Optional client-stamped Unix milliseconds for receive-window checks.
+            recv_window: Optional maximum order staleness in milliseconds.
 
         Returns:
             OrderResponse with order details and maker matches
@@ -249,6 +254,11 @@ class OrderClient:
             ...     maker_amount=18.64  # Sell 18.64 shares
             ... )
         """
+        receive_window = normalize_receive_window_options(
+            timestamp=timestamp,
+            recv_window=recv_window,
+        )
+
         # Ensure user data is loaded (lazy loading with cache)
         user_data = await self._ensure_user_data()
 
@@ -355,6 +365,7 @@ class OrderClient:
             order_type=order_type.value,
             market_slug=market_slug,
             post_only=post_only if order_type == OrderType.GTC else None,
+            **receive_window,
         )
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         self._logger.debug("Submitting order to API", {
