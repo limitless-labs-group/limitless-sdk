@@ -147,3 +147,13 @@ async def test_websocket_authenticated_subscription_allows_hmac_without_api_key(
 
     await client.subscribe("subscribe_positions", {"marketSlugs": ["market-1"]})
     await client.subscribe("subscribe_order_events")
+
+
+@pytest.mark.asyncio
+async def test_websocket_subscription_rejects_unsupported_channel():
+    client = WebSocketClient(WebSocketConfig(auto_reconnect=False))
+    client._sio = _FakeAsyncClient()
+    client._state = WebSocketState.CONNECTED
+
+    with pytest.raises(ValueError, match="Unsupported websocket subscription channel 'trades'"):
+        await client.subscribe("trades")  # type: ignore[arg-type]

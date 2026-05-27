@@ -26,17 +26,21 @@ from .types import (
     WebSocketConfig,
     SubscriptionChannel,
     SubscriptionOptions,
-    OrderbookUpdate,
-    TradeEvent,
-    OrderUpdate,
-    FillEvent,
-    MarketUpdate,
-    PriceUpdate,
 )
 
 
 DEFAULT_WS_URL = "wss://ws.limitless.exchange"
 DEFAULT_NAMESPACE = "/markets"
+SUPPORTED_SUBSCRIPTION_CHANNELS = {
+    "subscribe_market_prices",
+    "subscribe_positions",
+    "subscribe_transactions",
+    "subscribe_order_events",
+    "subscribe_live_sports",
+    "subscribe_live_esports",
+    "subscribe_market_lifecycle",
+    "unsubscribe_market_lifecycle",
+}
 
 
 def _build_iso_timestamp() -> str:
@@ -51,15 +55,18 @@ class WebSocketClient:
     """WebSocket client for real-time data streaming from Limitless Exchange.
 
     This client uses Socket.IO to connect to the WebSocket server and provides
-    typed event subscriptions for orderbook, trades, orders, and market data.
+    typed event subscriptions for CLOB orderbook, AMM/oracle price, order
+    lifecycle, market lifecycle, position, and transaction data.
 
     Public Subscriptions (no authentication required):
-    - Market prices (AMM)
-    - Orderbook updates (CLOB)
+    - Market prices, oracle prices, and CLOB orderbook updates
+    - Live sports/esports snapshots
+    - Market lifecycle events
 
     Authenticated Subscriptions (require API key or HMAC credentials):
     - User positions
     - User transactions
+    - User order lifecycle events
 
     Performance features:
     - Async/await for concurrent operations
@@ -351,6 +358,8 @@ class WebSocketClient:
         if not self.is_connected():
             raise ConnectionError("WebSocket not connected. Call connect() first.")
 
+        self._validate_subscription_channel(channel)
+
         # Check if authentication is required for authenticated channels
         authenticated_channels = [
             'subscribe_positions',
@@ -409,6 +418,8 @@ class WebSocketClient:
         """
         if not self.is_connected():
             raise ConnectionError("WebSocket not connected")
+
+        self._validate_subscription_channel(channel)
 
         if options is None:
             options = {}
@@ -630,6 +641,14 @@ class WebSocketClient:
         """
         market_slug = options.get('marketSlug', 'global')
         return f"{channel}:{market_slug}"
+
+    def _validate_subscription_channel(self, channel: SubscriptionChannel) -> None:
+        """Validate websocket subscription channel against backend-supported events."""
+        if channel not in SUPPORTED_SUBSCRIPTION_CHANNELS:
+            raise ValueError(
+                f"Unsupported websocket subscription channel '{channel}'. "
+                "Use a supported websocket channel constant."
+            )
 
     def _get_channel_from_key(self, key: str) -> SubscriptionChannel:
         """Extract channel from subscription key.

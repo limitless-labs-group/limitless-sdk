@@ -5,6 +5,7 @@ import os
 
 from limitless_sdk import (
     CreatePartnerAccountInput,
+    ListPartnerAccountsParams,
     ScopeAccountCreation,
     ScopeTrading,
 )
@@ -35,6 +36,15 @@ async def main() -> None:
         )
         print("Created partner server-wallet account")
         print(f"  profile_id={account.profile_id} account={account.account}")
+
+        recovered = await scoped.partner_accounts.list_accounts(
+            ListPartnerAccountsParams(
+                account=account.account,
+                limit=25,
+                page=1,
+            )
+        )
+        print(f"Recovered partner account records: {len(recovered.data)}")
         print("Fund this account before attempting delegated trading.")
 
     finally:

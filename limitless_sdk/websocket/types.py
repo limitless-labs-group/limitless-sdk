@@ -31,12 +31,6 @@ class WebSocketState(str, Enum):
 
 # Subscription channel types
 SubscriptionChannel = Literal[
-    "orderbook",
-    "trades",
-    "orders",
-    "fills",
-    "markets",
-    "prices",
     "subscribe_market_prices",
     "subscribe_positions",
     "subscribe_transactions",
@@ -53,8 +47,8 @@ class WebSocketConfig(BaseModel):
 
     Args:
         url: WebSocket URL (default: wss://ws.limitless.exchange)
-        api_key: API key for authenticated subscriptions (positions, transactions).
-                Not required for public subscriptions (market prices, orderbook).
+        api_key: API key for authenticated subscriptions (positions, transactions,
+                order lifecycle events). Not required for public market-price subscriptions.
                 You can generate an API key at https://limitless.exchange
                 and set LIMITLESS_API_KEY environment variable.
         hmac_credentials: Scoped HMAC credentials for authenticated subscriptions.
@@ -149,104 +143,11 @@ class OrderbookUpdate(TypedDict):
     timestamp: Union[str, int, Any]  # API sends Date, can be string or number after serialization
 
 
-class TradeEvent(TypedDict):
-    """Trade event.
-
-    Attributes:
-        marketSlug: Market slug identifier (camelCase to match API)
-        side: Trade side (BUY or SELL)
-        price: Trade price per share
-        size: Trade size in shares
-        timestamp: Unix timestamp in milliseconds
-        tradeId: Unique trade identifier (camelCase to match API)
-    """
-    marketSlug: str
-    side: Literal["BUY", "SELL"]
-    price: float
-    size: float
-    timestamp: int
-    tradeId: str
-
-
-class OrderUpdate(TypedDict):
-    """Order update event.
-
-    Attributes:
-        orderId: Order identifier (camelCase to match API)
-        marketSlug: Market slug identifier (camelCase to match API)
-        side: Order side (BUY or SELL)
-        price: Order price (optional for FOK orders)
-        size: Order size in shares
-        filled: Filled amount in shares
-        status: Order status
-        timestamp: Unix timestamp in milliseconds
-    """
-    orderId: str
-    marketSlug: str
-    side: Literal["BUY", "SELL"]
-    price: Optional[float]
-    size: float
-    filled: float
-    status: Literal["OPEN", "FILLED", "CANCELLED", "PARTIALLY_FILLED"]
-    timestamp: int
-
-
-class FillEvent(TypedDict):
-    """Order fill event.
-
-    Attributes:
-        orderId: Order identifier (camelCase to match API)
-        marketSlug: Market slug identifier (camelCase to match API)
-        side: Order side (BUY or SELL)
-        price: Fill price per share
-        size: Fill size in shares
-        timestamp: Unix timestamp in milliseconds
-        fillId: Unique fill identifier (camelCase to match API)
-    """
-    orderId: str
-    marketSlug: str
-    side: Literal["BUY", "SELL"]
-    price: float
-    size: float
-    timestamp: int
-    fillId: str
-
-
-class MarketUpdate(TypedDict):
-    """Market update event.
-
-    Attributes:
-        marketSlug: Market slug identifier (camelCase to match API)
-        lastPrice: Last trade price (optional, camelCase to match API)
-        volume24h: 24h volume (optional, camelCase to match API)
-        priceChange24h: 24h price change percentage (optional, camelCase to match API)
-        timestamp: Unix timestamp in milliseconds
-    """
-    marketSlug: str
-    lastPrice: Optional[float]
-    volume24h: Optional[float]
-    priceChange24h: Optional[float]
-    timestamp: int
-
-
-class PriceUpdate(TypedDict):
-    """Price update event (deprecated - use NewPriceData for AMM prices).
-
-    Note: This type does not match the actual API response.
-    Use NewPriceData for the correct AMM price update format.
-
-    Attributes:
-        marketSlug: Market slug identifier (camelCase to match API)
-        price: Current price
-        timestamp: Unix timestamp in milliseconds
-    """
-    marketSlug: str
-    price: float
-    timestamp: int
-
-
 class AmmPriceEntry(TypedDict):
-    """Single AMM price entry in updatedPrices array.
+    """Single AMM price entry in newPriceData.updatedPrices.
+
+    This is not used by orderbookUpdate; CLOB orderbook updates use
+    OrderbookData.
 
     Attributes:
         marketId: Market ID
@@ -450,11 +351,6 @@ DisconnectHandler = Callable[[str], None]
 ErrorHandler = Callable[[Exception], None]
 ReconnectingHandler = Callable[[int], None]
 OrderbookHandler = Callable[[OrderbookUpdate], None]
-TradeHandler = Callable[[TradeEvent], None]
-OrderHandler = Callable[[OrderUpdate], None]
-FillHandler = Callable[[FillEvent], None]
-MarketHandler = Callable[[MarketUpdate], None]
-PriceHandler = Callable[[PriceUpdate], None]
 NewPriceDataHandler = Callable[[NewPriceData], None]
 OraclePriceDataHandler = Callable[[OraclePriceData], None]
 TransactionHandler = Callable[[TransactionEvent], None]
@@ -486,16 +382,11 @@ class WebSocketEvents(TypedDict, total=False):
     orderbookUpdate: OrderbookHandler  # API event name is orderbookUpdate (camelCase)
     newPriceData: NewPriceDataHandler  # API event name is newPriceData (camelCase)
     oraclePriceData: OraclePriceDataHandler  # API event name is oraclePriceData (camelCase)
-    trade: TradeHandler
-    order: OrderHandler
     orderEvent: OrderEventHandler
-    fill: FillHandler
-    market: MarketHandler
     marketCreated: MarketCreatedHandler
     marketResolved: MarketResolvedHandler
     live_sports_update: LiveSportsUpdateHandler
     live_esports_update: LiveEsportsUpdateHandler
     system: SystemHandler
-    price: PriceHandler  # Deprecated - use newPriceData
     positions: Any  # Position update handler
     tx: TransactionHandler

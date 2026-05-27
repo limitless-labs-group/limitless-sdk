@@ -5,6 +5,24 @@ All notable changes to the Limitless Exchange Python SDK will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.11]
+
+### Added
+
+- Authenticated current-profile lookup via `PortfolioFetcher.get_current_profile()`, which calls `GET /profiles/me`.
+- Partner-owned account listing and recovery via `PartnerAccountService.list_accounts()`.
+- Public partner account list models:
+  - `ListPartnerAccountsParams`
+  - `PartnerAccountListItem`
+  - `ListPartnerAccountsResponse`
+- Focused tests for `/profiles/me` profile reads and HMAC-only partner account listing, filtering, pagination capping, and invalid query params.
+
+### Changed
+
+- Removed unsupported legacy websocket short channel literals and stale typed event exports for unsupported events.
+- Added runtime validation so dynamic websocket subscriptions fail fast unless they use a supported backend channel.
+- README, examples docs, package metadata, lockfile, and runtime `__version__` now target `v1.0.11`.
+
 ## [1.0.10]
 
 ### Fixed

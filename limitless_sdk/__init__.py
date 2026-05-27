@@ -12,7 +12,7 @@ Example:
     >>> markets = await market_fetcher.get_markets()
 """
 
-__version__ = "1.0.10"
+__version__ = "1.0.11"
 
 # API layer - HTTP client and error handling
 from .api import (
@@ -57,11 +57,15 @@ from .websocket import (
     SubscriptionChannel,
     SubscriptionOptions,
     OrderbookUpdate,
-    TradeEvent,
-    OrderUpdate,
-    FillEvent,
-    MarketUpdate,
-    PriceUpdate,
+    NewPriceData,
+    OraclePriceData,
+    OrderEvent,
+    LiveSportsUpdate,
+    LiveEsportsUpdate,
+    SystemEvent,
+    TransactionEvent,
+    MarketCreatedEvent,
+    MarketResolvedEvent,
 )
 
 # Root client
@@ -130,6 +134,9 @@ from .types import (
     CreatePartnerAccountInput,
     CreatePartnerAccountEOAHeaders,
     PartnerAccountResponse,
+    ListPartnerAccountsParams,
+    PartnerAccountListItem,
+    ListPartnerAccountsResponse,
     PartnerWithdrawalAddressInput,
     PartnerWithdrawalAddressResponse,
     PartnerAccountAllowanceTypeUsdcAllowance,
@@ -230,11 +237,15 @@ __all__ = [
     "SubscriptionChannel",
     "SubscriptionOptions",
     "OrderbookUpdate",
-    "TradeEvent",
-    "OrderUpdate",
-    "FillEvent",
-    "MarketUpdate",
-    "PriceUpdate",
+    "NewPriceData",
+    "OraclePriceData",
+    "OrderEvent",
+    "LiveSportsUpdate",
+    "LiveEsportsUpdate",
+    "SystemEvent",
+    "TransactionEvent",
+    "MarketCreatedEvent",
+    "MarketResolvedEvent",
     # Logger types
     "ILogger",
     "NoOpLogger",
@@ -296,6 +307,9 @@ __all__ = [
     "CreatePartnerAccountInput",
     "CreatePartnerAccountEOAHeaders",
     "PartnerAccountResponse",
+    "ListPartnerAccountsParams",
+    "PartnerAccountListItem",
+    "ListPartnerAccountsResponse",
     "PartnerWithdrawalAddressInput",
     "PartnerWithdrawalAddressResponse",
     "PartnerAccountAllowanceTypeUsdcAllowance",

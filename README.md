@@ -1,10 +1,10 @@
 # Limitless Exchange Python SDK
 
-**v1.0.10** | Async | Type-Safe | Partner HMAC Support
+**v1.0.11** | Async | Type-Safe | Partner HMAC Support
 
 A minimalistic, async Python SDK for interacting with the Limitless Exchange API.
 
-> **v1.0.10 Release**: Fixes HMAC authentication for authenticated WebSocket subscriptions. See [CHANGELOG.md](./CHANGELOG.md) for release notes.
+> **v1.0.11 Release**: Adds authenticated profile reads via `/profiles/me`, partner sub-account listing/recovery, and WebSocket subscription validation cleanup. See [CHANGELOG.md](./CHANGELOG.md) for release notes.
 
 ## Features
 
@@ -14,10 +14,10 @@ A minimalistic, async Python SDK for interacting with the Limitless Exchange API
 - 🧭 **Market pages navigation** - Navigation tree, dynamic filters, property keys
 - 📋 **Order management** - GTC, FAK, and FOK orders with automatic signing
 - 🔢 **IEEE-safe order payload parsing** - `create_order()` handles `makerAmount`, `takerAmount`, `price`, and `salt` returned as numeric strings
-- 💼 **Portfolio tracking** - Positions and user history
+- 💼 **Portfolio tracking** - Authenticated current profile reads, positions, and user history
 - 🔄 **Automatic retries** - Configurable retry logic with error handling
-- 🌐 **WebSocket support** - Real-time orderbook updates
-- 🤝 **Partner account + delegated trading helpers** - Server-wallet child accounts, delegated GTC/FAK/FOK order flows, and server-wallet redeem/withdraw to account, smart wallet, or whitelisted treasury destinations
+- 🌐 **WebSocket support** - Real-time CLOB orderbook, AMM/oracle price, position, transaction, order-event, and market lifecycle updates
+- 🤝 **Partner account + delegated trading helpers** - Server-wallet child accounts, account listing/recovery, delegated GTC/FAK/FOK order flows, withdrawal allowlists, and server-wallet redeem/withdraw to account, smart wallet, or whitelisted treasury destinations
 - 🛡️ **Custom headers** - Global and per-request header configuration
 - ⚡ **Async/await support** - Modern async Python with aiohttp
 - 🚀 **Venue caching** - Automatic contract address caching for optimized order creation
@@ -171,6 +171,7 @@ Partner surface added by this flow:
 - `api_tokens.list_tokens()`
 - `api_tokens.revoke_token()`
 - `partner_accounts.create_account()`
+- `partner_accounts.list_accounts()`
 - `partner_accounts.check_allowances()`
 - `partner_accounts.retry_allowances()`
 - `partner_accounts.add_withdrawal_address()`
@@ -183,6 +184,24 @@ Partner surface added by this flow:
 
 Standard `X-API-Key` authentication remains fully supported for the existing portfolio, market, and regular order flows.
 
+### Authenticated Profile Reads
+
+Use `client.portfolio.get_current_profile()` to fetch the authenticated caller's private profile via `GET /profiles/me`. Use `get_profile(address)` when you need the existing address-based lookup via `GET /profiles/:account`.
+
+```python
+from limitless_sdk import Client
+
+client = Client(api_key="sk_test_...")
+
+current_profile = await client.portfolio.get_current_profile()
+profile_by_address = await client.portfolio.get_profile(
+    "0x1676716Ef7F19B5C5d690631CB57cf0bFD900A3d"
+)
+
+print(current_profile["id"])
+await client.close()
+```
+
 Use partner HMAC credentials only in a backend or BFF service. Do not expose `token_id` / `secret` in browser bundles, frontend environment variables, or client-side storage.
 
 Recommended setup:
@@ -191,6 +210,30 @@ Recommended setup:
 - Store the real HMAC credentials on your backend.
 - Use this SDK server-side to sign partner-authenticated requests.
 - Expose only your own app-specific endpoints to the frontend.
+
+#### Partner Account Listing
+
+Use `client.partner_accounts.list_accounts()` from a backend or BFF with HMAC-scoped API-token credentials that include `account_creation`. This endpoint lists or recovers partner-owned child accounts created under the authenticated partner profile.
+
+- `list_accounts()` calls `GET /profiles/partner-accounts`
+- optional `account` filters by exact account address
+- optional `limit` and `page` are positive integers; `limit` is capped to 25 before sending
+- the SDK requires HMAC credentials and does not send `x-on-behalf-of`
+
+```python
+from limitless_sdk import ListPartnerAccountsParams
+
+accounts = await client.partner_accounts.list_accounts(
+    ListPartnerAccountsParams(
+        account="0x1676716Ef7F19B5C5d690631CB57cf0bFD900A3d",
+        limit=100,
+        page=1,
+    )
+)
+
+print(accounts.limit)  # 25
+print(accounts.data[0].profile_id)
+```
 
 #### Partner Server-Wallet Allowances
 
@@ -593,6 +636,10 @@ from limitless_sdk.portfolio import PortfolioFetcher
 
 portfolio_fetcher = PortfolioFetcher(http_client)
 
+# Get authenticated profile
+profile = await portfolio_fetcher.get_current_profile()
+print(f"Profile ID: {profile['id']}")
+
 # Get positions
 positions = await portfolio_fetcher.get_positions()
 
@@ -608,7 +655,7 @@ print(f"Points: {positions['accumulativePoints']}")
 
 ## WebSocket Support
 
-Subscribe to real-time orderbook updates:
+Subscribe to backend-supported websocket events only. Public subscriptions include `subscribe_market_prices`, `subscribe_live_sports`, `subscribe_live_esports`, and `subscribe_market_lifecycle`; authenticated subscriptions include `subscribe_positions`, `subscribe_transactions`, and `subscribe_order_events`.
 
 ```python
 from limitless_sdk.websocket import WebSocketClient, WebSocketConfig
@@ -632,6 +679,15 @@ async def on_orderbook_update(data):
     best_bid = orderbook['bids'][0]['price']
     best_ask = orderbook['asks'][0]['price']
     print(f"Bid: {best_bid:.4f} | Ask: {best_ask:.4f}")
+
+@ws_client.on('newPriceData')
+async def on_amm_price_update(data):
+    for price in data.get('updatedPrices', []):
+        print(f"AMM {price['marketAddress']}: YES={price['yesPrice']:.4f}")
+
+@ws_client.on('orderEvent')
+async def on_order_event(data):
+    print("Order lifecycle event:", data)
 
 # Connect and subscribe
 await ws_client.connect()
@@ -695,7 +751,7 @@ The SDK is organized into modular components:
 - **`MarketFetcher`**: Market data retrieval (markets, orderbooks)
 - **`OrderClient`**: Order creation/cancellation with automatic signing
 - **`PortfolioFetcher`**: Portfolio and positions data
-- **`WebSocketClient`**: Real-time orderbook updates
+- **`WebSocketClient`**: Real-time CLOB orderbook, AMM/oracle price, position, transaction, order-event, and market lifecycle updates
 
 ### Type System
 
@@ -878,6 +934,18 @@ points = positions['accumulativePoints']
 
 ## Changelog
 
+### v1.0.11
+
+**Release Date**: May 27, 2026
+
+Latest release with authenticated profile reads, partner sub-account listing/recovery, and WebSocket subscription validation cleanup.
+
+#### Highlights
+
+- **Authenticated Profiles**: Fetch the current authenticated profile with `GET /profiles/me`.
+- **Partner Account Listing**: `partner_accounts.list_accounts()` lists partner-owned sub-accounts with optional address recovery and pagination.
+- **WebSocket Channel Validation**: Unsupported legacy short channel literals now fail fast.
+
 ### v1.0.10
 
 **Release Date**: May 12, 2026
@@ -886,20 +954,19 @@ Latest release with authenticated WebSocket HMAC fixes for Python Socket.IO clie
 
 #### Highlights
 
-- **WebSocket HMAC auth**: Authenticated subscriptions now sign the Engine.IO WebSocket path emitted by `python-engineio`.
-- **Stable WebSocket upgrade URL**: Socket.IO timestamp cache-buster query parameters are disabled for WebSocket connections.
+- **WebSocket HMAC Auth**: Authenticated subscriptions now sign the Engine.IO WebSocket path emitted by `python-engineio` and use a stable WebSocket upgrade URL.
 
 ### v1.0.9
 
 **Release Date**: May 4, 2026
 
-Release with partner withdrawal-address allowlist helpers and server-wallet withdrawals to explicit whitelisted treasury destinations.
+Release with partner withdrawal-address allowlist helpers, server-wallet withdrawals to explicit whitelisted treasury destinations, and expanded WebSocket event coverage.
 
 #### Highlights
 
-- **Partner withdrawal allowlists**: `partner_accounts.add_withdrawal_address()` and `delete_withdrawal_address()` use Privy identity auth for `/portfolio/withdrawal-addresses`.
-- **Treasury withdrawals**: `server_wallets.withdraw()` supports child server-wallet withdrawals to allowlisted destinations and caller-wallet withdrawals with `destination` only.
-- **Docs and examples**: API-key-v3 docs and `server_wallet_redeem_withdraw.py` cover optional destination allowlisting before HMAC withdraw.
+- **Partner Withdrawal Allowlists**: `partner_accounts.add_withdrawal_address()` and `delete_withdrawal_address()` use Privy identity auth for `/portfolio/withdrawal-addresses`.
+- **Treasury Withdrawals**: `server_wallets.withdraw()` supports child server-wallet withdrawals to allowlisted destinations and caller-wallet withdrawals with `destination` only.
+- **Expanded WebSocket Surface**: Added typed subscription/event coverage for order events, live sports/esports, market lifecycle, oracle price data, and system messages.
 
 ### v1.0.0
 

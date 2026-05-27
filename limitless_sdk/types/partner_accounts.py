@@ -32,6 +32,37 @@ class PartnerAccountResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class ListPartnerAccountsParams(BaseModel):
+    """Query params for listing or recovering partner-owned accounts."""
+
+    account: Optional[str] = None
+    page: Optional[int] = None
+    limit: Optional[int] = None
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class PartnerAccountListItem(BaseModel):
+    """Minimal partner-owned account returned by the list/recovery endpoint."""
+
+    profile_id: int = Field(alias="profileId")
+    account: str
+    display_name: str = Field(alias="displayName")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class ListPartnerAccountsResponse(BaseModel):
+    """Partner-owned account list response."""
+
+    data: List[PartnerAccountListItem]
+    page: int
+    limit: int
+    has_more: bool = Field(alias="hasMore")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class PartnerWithdrawalAddressInput(BaseModel):
     """Request payload for adding a partner withdrawal destination allowlist entry."""
 

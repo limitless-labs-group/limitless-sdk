@@ -6,6 +6,7 @@ Partner-facing examples for:
 - `GET /auth/api-tokens`
 - `DELETE /auth/api-tokens/:tokenId`
 - `POST /profiles/partner-accounts`
+- `GET /profiles/partner-accounts`
 - `GET /profiles/partner-accounts/:profileId/allowances`
 - `POST /profiles/partner-accounts/:profileId/allowances/retry`
 - delegated `POST /orders` (`GTC` with optional `post_only`)
@@ -63,6 +64,7 @@ python examples/api_key_v3/websocket_hmac.py
 ## Notes
 
 - The HMAC-scoped client signs request headers for you once you configure `HMACCredentials`.
+- Use `client.partner_accounts.list_accounts()` to list or recover child accounts owned by the authenticated partner.
 - Delegated server-wallet accounts must be funded before the first delegated trade.
 - New server wallets may need allowance recovery before trading succeeds. Use `client.partner_accounts.check_allowances(profile_id)` and `client.partner_accounts.retry_allowances(profile_id)` for server-wallet child profiles.
 - `partner_account_allowances.py` uses only partner HMAC credentials and does not call admin APIs.

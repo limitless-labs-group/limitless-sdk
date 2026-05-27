@@ -16,13 +16,13 @@ Example:
     ... )
     >>>
     >>> # Subscribe to events
-    >>> @client.on('orderbook')
+    >>> @client.on('orderbookUpdate')
     >>> async def on_orderbook(data: OrderbookUpdate):
-    ...     print(f"Orderbook: {data['market_slug']}")
+    ...     print(f"Orderbook: {data['marketSlug']}")
     >>>
     >>> # Connect and subscribe
     >>> await client.connect()
-    >>> await client.subscribe('orderbook', {'market_slug': 'market-123'})
+    >>> await client.subscribe('subscribe_market_prices', {'marketSlugs': ['market-123']})
 """
 
 from .client import WebSocketClient, DEFAULT_WS_URL
@@ -36,11 +36,6 @@ from .types import (
     OrderbookEntry,
     OrderbookData,
     OrderbookUpdate,
-    TradeEvent,
-    OrderUpdate,
-    FillEvent,
-    MarketUpdate,
-    PriceUpdate,
     AmmPriceEntry,
     NewPriceData,
     OraclePriceData,
@@ -64,11 +59,6 @@ from .types import (
     ErrorHandler,
     ReconnectingHandler,
     OrderbookHandler,
-    TradeHandler,
-    OrderHandler,
-    FillHandler,
-    MarketHandler,
-    PriceHandler,
     NewPriceDataHandler,
     OraclePriceDataHandler,
     TransactionHandler,
@@ -93,11 +83,6 @@ __all__ = [
     "OrderbookEntry",
     "OrderbookData",
     "OrderbookUpdate",
-    "TradeEvent",
-    "OrderUpdate",
-    "FillEvent",
-    "MarketUpdate",
-    "PriceUpdate",
     "AmmPriceEntry",
     "NewPriceData",
     "OraclePriceData",
@@ -121,11 +106,6 @@ __all__ = [
     "ErrorHandler",
     "ReconnectingHandler",
     "OrderbookHandler",
-    "TradeHandler",
-    "OrderHandler",
-    "FillHandler",
-    "MarketHandler",
-    "PriceHandler",
     "NewPriceDataHandler",
     "OraclePriceDataHandler",
     "TransactionHandler",

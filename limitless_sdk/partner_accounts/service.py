@@ -1,6 +1,6 @@
 """Partner-account creation service."""
 
-from typing import Optional
+from typing import Any, Dict, Optional, Union
 from urllib.parse import quote
 
 from ..api.http_client import HttpClient
@@ -8,6 +8,8 @@ from ..types.logger import ILogger, NoOpLogger
 from ..types.partner_accounts import (
     CreatePartnerAccountEOAHeaders,
     CreatePartnerAccountInput,
+    ListPartnerAccountsParams,
+    ListPartnerAccountsResponse,
     PartnerAccountAllowanceResponse,
     PartnerAccountResponse,
     PartnerWithdrawalAddressInput,
@@ -19,6 +21,11 @@ _PARTNER_ACCOUNT_ALLOWANCE_HMAC_ONLY_ERROR = (
     "Partner account allowance recovery requires HMAC-scoped API token auth; "
     "legacy API keys are not supported."
 )
+_PARTNER_ACCOUNT_LIST_HMAC_ONLY_ERROR = (
+    "Partner account listing requires HMAC-scoped API token auth; "
+    "legacy API keys are not supported."
+)
+_PARTNER_ACCOUNTS_MAX_LIMIT = 25
 
 
 class PartnerAccountService:
@@ -74,13 +81,41 @@ class PartnerAccountService:
         )
         return PartnerAccountResponse(**response)
 
+    async def list_accounts(
+        self,
+        params: Optional[Union[ListPartnerAccountsParams, Dict[str, Any]]] = None,
+    ) -> ListPartnerAccountsResponse:
+        """List or recover partner-owned accounts created by the authenticated partner.
+
+        Requires HMAC-scoped API-token auth with ``account_creation``. Optional
+        params are ``account``, ``limit``, and ``page``; ``limit`` is capped to
+        the API maximum of 25 before sending.
+        """
+
+        self._require_hmac_auth(
+            "list_partner_accounts",
+            _PARTNER_ACCOUNT_LIST_HMAC_ONLY_ERROR,
+        )
+        query_params = self._partner_accounts_query_params(params)
+
+        self._logger.debug("Listing partner accounts", query_params)
+
+        response = await self._http_client.get(
+            "/profiles/partner-accounts",
+            params=query_params or None,
+        )
+        return ListPartnerAccountsResponse(**response)
+
     async def check_allowances(
         self,
         profile_id: int,
     ) -> PartnerAccountAllowanceResponse:
         """Check delegated-trading allowance readiness from live chain state."""
 
-        self._require_allowance_hmac_auth("check_partner_account_allowances")
+        self._require_hmac_auth(
+            "check_partner_account_allowances",
+            _PARTNER_ACCOUNT_ALLOWANCE_HMAC_ONLY_ERROR,
+        )
         path = self._partner_account_allowances_path(profile_id)
 
         self._logger.debug(
@@ -102,7 +137,10 @@ class PartnerAccountService:
         after a short delay to observe confirmed chain state.
         """
 
-        self._require_allowance_hmac_auth("retry_partner_account_allowances")
+        self._require_hmac_auth(
+            "retry_partner_account_allowances",
+            _PARTNER_ACCOUNT_ALLOWANCE_HMAC_ONLY_ERROR,
+        )
         path = self._partner_account_allowances_path(profile_id)
 
         self._logger.debug(
@@ -163,13 +201,61 @@ class PartnerAccountService:
             identity_token,
         )
 
-    def _require_allowance_hmac_auth(self, operation: str) -> None:
+    def _require_hmac_auth(self, operation: str, error_message: str) -> None:
         self._http_client.require_auth(operation)
         if self._http_client.get_hmac_credentials() is None:
-            raise ValueError(_PARTNER_ACCOUNT_ALLOWANCE_HMAC_ONLY_ERROR)
+            raise ValueError(error_message)
+
+    def _partner_accounts_query_params(
+        self,
+        params: Optional[Union[ListPartnerAccountsParams, Dict[str, Any]]],
+    ) -> Dict[str, Any]:
+        if params is None:
+            raw_params: Dict[str, Any] = {}
+        elif isinstance(params, ListPartnerAccountsParams):
+            raw_params = params.model_dump(exclude_none=True)
+        elif isinstance(params, dict):
+            raw_params = {
+                key: value for key, value in params.items() if value is not None
+            }
+        else:
+            raise ValueError("params must be a ListPartnerAccountsParams or dict")
+
+        query: Dict[str, Any] = {}
+
+        if "account" in raw_params:
+            account = raw_params["account"]
+            if not isinstance(account, str) or not account.strip():
+                raise ValueError("account must be a non-empty string")
+            query["account"] = account.strip()
+
+        if "limit" in raw_params:
+            query["limit"] = self._format_positive_integer(
+                raw_params["limit"],
+                "limit",
+                _PARTNER_ACCOUNTS_MAX_LIMIT,
+            )
+
+        if "page" in raw_params:
+            query["page"] = self._format_positive_integer(raw_params["page"], "page")
+
+        return query
 
     def _partner_account_allowances_path(self, profile_id: int) -> str:
         if not isinstance(profile_id, int) or profile_id <= 0:
             raise ValueError("profile_id must be a positive integer")
 
         return f"/profiles/partner-accounts/{profile_id}/allowances"
+
+    def _format_positive_integer(
+        self,
+        value: Any,
+        name: str,
+        max_value: Optional[int] = None,
+    ) -> int:
+        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+            raise ValueError(f"{name} must be a positive integer")
+
+        if max_value is not None:
+            return min(value, max_value)
+        return value
