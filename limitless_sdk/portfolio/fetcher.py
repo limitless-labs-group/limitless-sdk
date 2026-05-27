@@ -1,6 +1,8 @@
 """Portfolio data fetcher for Limitless Exchange."""
 
 from typing import List, Optional, Dict, Any
+from urllib.parse import quote
+
 from ..api.http_client import HttpClient
 from ..types.portfolio import Position, HistoryResponse
 from ..types.logger import ILogger, NoOpLogger
@@ -60,15 +62,57 @@ class PortfolioFetcher:
             >>> print(f"Account: {response['account']}")
             >>> print(f"Fee Rate: {response['rank']['feeRateBps']}")
         """
-        self._logger.debug("Fetching user profile", {"address": address})
+        profile_address = address.strip()
+        if not profile_address:
+            raise ValueError("address must be a non-empty string")
+
+        self._logger.debug("Fetching user profile", {"address": profile_address})
 
         try:
-            response_data = await self._http_client.get(f"/profiles/{address}")
-            self._logger.info("User profile fetched successfully", {"address": address})
+            response_data = await self._http_client.get(
+                f"/profiles/{quote(profile_address, safe='')}"
+            )
+            self._logger.info(
+                "User profile fetched successfully",
+                {"address": profile_address},
+            )
             return response_data  # Return raw API response 1:1
 
         except Exception as error:
-            self._logger.error("Failed to fetch user profile", error, {"address": address})
+            self._logger.error(
+                "Failed to fetch user profile",
+                error,
+                {"address": profile_address},
+            )
+            raise
+
+    async def get_current_profile(self) -> dict:
+        """Get the authenticated caller's private profile.
+
+        Calls ``GET /profiles/me`` so callers do not need to pass or persist the
+        authenticated account address.
+
+        Returns:
+            Raw API response dict with 'id', 'account', 'rank', etc.
+
+        Raises:
+            AuthenticationError: If not authenticated (401)
+            APIError: If API request fails
+
+        Example:
+            >>> response = await fetcher.get_current_profile()
+            >>> print(f"User ID: {response['id']}")
+            >>> print(f"Account: {response['account']}")
+        """
+        self._logger.debug("Fetching current user profile")
+
+        try:
+            response_data = await self._http_client.get("/profiles/me")
+            self._logger.info("Current user profile fetched successfully")
+            return response_data  # Return raw API response 1:1
+
+        except Exception as error:
+            self._logger.error("Failed to fetch current user profile", error)
             raise
 
     async def get_positions(self) -> dict:

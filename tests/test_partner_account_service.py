@@ -9,6 +9,7 @@ from limitless_sdk.partner_accounts import PartnerAccountService
 from limitless_sdk.types import (
     CreatePartnerAccountEOAHeaders,
     CreatePartnerAccountInput,
+    ListPartnerAccountsParams,
     PartnerWithdrawalAddressInput,
 )
 
@@ -49,6 +50,20 @@ WITHDRAWAL_ADDRESS_RESPONSE = {
     "label": "treasury",
     "createdAt": "2026-04-30T12:00:00.000Z",
     "deletedAt": None,
+}
+
+
+LIST_ACCOUNTS_RESPONSE = {
+    "data": [
+        {
+            "profileId": 12345,
+            "account": "0x1676716Ef7F19B5C5d690631CB57cf0bFD900A3d",
+            "displayName": "Partner User",
+        }
+    ],
+    "page": 2,
+    "limit": 25,
+    "hasMore": False,
 }
 
 
@@ -141,6 +156,130 @@ async def test_create_account_requires_eoa_headers_when_server_wallet_false():
 
     assert "eoa_headers are required" in str(exc.value)
     http_client.post_with_headers.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_list_accounts_gets_partner_accounts_with_filters():
+    http_client = Mock()
+    http_client.require_auth = Mock()
+    http_client.get_hmac_credentials = Mock(
+        return_value={"token_id": "token-1", "secret": "secret-1"}
+    )
+    http_client.get = AsyncMock(return_value=LIST_ACCOUNTS_RESPONSE)
+
+    service = PartnerAccountService(http_client)
+    response = await service.list_accounts(
+        ListPartnerAccountsParams(
+            account=" 0x1676716Ef7F19B5C5d690631CB57cf0bFD900A3d ",
+            limit=25,
+            page=2,
+        )
+    )
+
+    http_client.require_auth.assert_called_once_with("list_partner_accounts")
+    http_client.get.assert_awaited_once_with(
+        "/profiles/partner-accounts",
+        params={
+            "account": "0x1676716Ef7F19B5C5d690631CB57cf0bFD900A3d",
+            "limit": 25,
+            "page": 2,
+        },
+    )
+    assert response.data[0].profile_id == 12345
+    assert response.data[0].display_name == "Partner User"
+    assert response.has_more is False
+
+
+@pytest.mark.asyncio
+async def test_list_accounts_gets_partner_accounts_without_query_params():
+    http_client = Mock()
+    http_client.require_auth = Mock()
+    http_client.get_hmac_credentials = Mock(
+        return_value={"token_id": "token-1", "secret": "secret-1"}
+    )
+    http_client.get = AsyncMock(
+        return_value={"data": [], "page": 1, "limit": 25, "hasMore": False}
+    )
+
+    service = PartnerAccountService(http_client)
+    response = await service.list_accounts()
+
+    http_client.get.assert_awaited_once_with(
+        "/profiles/partner-accounts",
+        params=None,
+    )
+    assert response.data == []
+    assert response.limit == 25
+
+
+@pytest.mark.asyncio
+async def test_list_accounts_caps_limit_to_api_maximum():
+    http_client = Mock()
+    http_client.require_auth = Mock()
+    http_client.get_hmac_credentials = Mock(
+        return_value={"token_id": "token-1", "secret": "secret-1"}
+    )
+    http_client.get = AsyncMock(
+        return_value={"data": [], "page": 1, "limit": 25, "hasMore": False}
+    )
+
+    service = PartnerAccountService(http_client)
+    await service.list_accounts({"limit": 100, "page": 1})
+
+    http_client.get.assert_awaited_once_with(
+        "/profiles/partner-accounts",
+        params={"limit": 25, "page": 1},
+    )
+
+
+@pytest.mark.asyncio
+async def test_list_accounts_rejects_invalid_query_params_before_network():
+    http_client = Mock()
+    http_client.require_auth = Mock()
+    http_client.get_hmac_credentials = Mock(
+        return_value={"token_id": "token-1", "secret": "secret-1"}
+    )
+    http_client.get = AsyncMock()
+
+    service = PartnerAccountService(http_client)
+
+    with pytest.raises(ValueError, match="account must be a non-empty string"):
+        await service.list_accounts({"account": " "})
+
+    with pytest.raises(ValueError, match="limit must be a positive integer"):
+        await service.list_accounts({"limit": 0})
+
+    with pytest.raises(ValueError, match="limit must be a positive integer"):
+        await service.list_accounts({"limit": 1.5})
+
+    with pytest.raises(ValueError, match="page must be a positive integer"):
+        await service.list_accounts({"page": -1})
+
+    with pytest.raises(ValueError, match="page must be a positive integer"):
+        await service.list_accounts({"page": 2.5})
+
+    http_client.get.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_list_accounts_rejects_legacy_api_key_only_auth():
+    http_client = Mock()
+    http_client.require_auth = Mock()
+    http_client.get_hmac_credentials = Mock(return_value=None)
+    http_client.get = AsyncMock()
+
+    service = PartnerAccountService(http_client)
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "Partner account listing requires HMAC-scoped API token auth; "
+            "legacy API keys are not supported."
+        ),
+    ):
+        await service.list_accounts()
+
+    http_client.get.assert_not_awaited()
 
 
 @pytest.mark.asyncio
