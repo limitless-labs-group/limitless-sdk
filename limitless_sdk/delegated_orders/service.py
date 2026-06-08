@@ -39,6 +39,7 @@ class DelegatedOrderService:
         taker: Optional[str] = None,
         fee_rate_bps: Optional[int] = None,
         post_only: Optional[bool] = None,
+        stp_policy: Optional[str] = None,
     ) -> OrderResponse:
         self._http_client.require_auth("create_delegated_order")
 
@@ -90,6 +91,7 @@ class DelegatedOrderService:
             owner_id=on_behalf_of,
             on_behalf_of=on_behalf_of,
             post_only=post_only if order_type == OrderType.GTC else None,
+            stp_policy=stp_policy,
         )
 
         self._logger.debug(

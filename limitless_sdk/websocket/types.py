@@ -192,12 +192,19 @@ class OraclePriceData(TypedDict):
 
 
 class OmeOrderEvent(TypedDict, total=False):
-    """OME order lifecycle event."""
+    """OME order lifecycle event.
+
+    A ``CANCELLATION`` frame may carry ``reason`` — self-trade prevention maker
+    cancels arrive as ``reason: "STP_MAKER_CANCELLED"``. The STP taker reject is
+    HTTP-only (it does not surface here); on the websocket a killed taker arrives
+    as a terminal execution mapped to KILLED with no reason.
+    """
     clientOrderId: str
     eventId: int
     marketId: str
     orderId: str
     price: str
+    reason: str
     remainingSize: str
     side: str
     source: Literal["OME"]

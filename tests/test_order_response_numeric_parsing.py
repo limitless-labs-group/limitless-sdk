@@ -96,3 +96,81 @@ def test_order_response_accepts_null_created_at_in_maker_matches() -> None:
     assert len(response.maker_matches) == 1
     assert response.maker_matches[0].created_at is None
     assert response.maker_matches[0].matched_size == "1000000"
+
+
+def _execution_payload() -> dict:
+    return {
+        "matched": True,
+        "settlementStatus": "MATCHED",
+        "tradeEventId": "9f7e6d5c-4b3a-2918-0716-5a4b3c2d1e0f",
+        "txHash": None,
+        "feeRateBps": 300,
+        "effectiveFeeBps": 0,
+        "totalsRaw": {
+            "contractsGross": "5000000",
+            "contractsFee": "0",
+            "contractsNet": "5000000",
+            "usdGross": "2250000",
+            "usdFee": "0",
+            "usdNet": "2250000",
+        },
+    }
+
+
+def test_order_response_surfaces_execution_with_typed_fields() -> None:
+    response = OrderResponse(
+        order=_base_order_payload(),
+        makerMatches=[],
+        execution=_execution_payload(),
+    )
+
+    assert response.execution is not None
+    execution = response.execution
+    assert execution.matched is True
+    # settlementStatus is a plain string, not coerced to any enum
+    assert execution.settlement_status == "MATCHED"
+    # fee fields are numbers
+    assert execution.fee_rate_bps == 300
+    assert execution.effective_fee_bps == 0
+    # totalsRaw fields stay strings (not coerced to numbers)
+    assert execution.totals_raw.usd_net == "2250000"
+    assert execution.totals_raw.contracts_gross == "5000000"
+    assert isinstance(execution.totals_raw.usd_net, str)
+    # optionals default to None when absent
+    assert execution.reason is None
+    assert execution.stp_maker_cancels is None
+
+
+def test_order_response_execution_carries_stp_signals() -> None:
+    payload = _execution_payload()
+    payload["matched"] = False
+    payload["settlementStatus"] = "CANCELED"
+    payload["reason"] = "STP_TAKER_REJECTED"
+    payload["stpMakerCancels"] = [
+        "2c92ce01-e59b-4966-9d3f-a03bdb85e3eb",
+        "e6ef7cf5-d43b-4927-80d1-23f34feb48d3",
+    ]
+
+    response = OrderResponse(
+        order=_base_order_payload(),
+        makerMatches=[],
+        execution=payload,
+    )
+
+    assert response.execution is not None
+    assert response.execution.reason == "STP_TAKER_REJECTED"
+    assert response.execution.stp_maker_cancels == [
+        "2c92ce01-e59b-4966-9d3f-a03bdb85e3eb",
+        "e6ef7cf5-d43b-4927-80d1-23f34feb48d3",
+    ]
+    # stp_maker_cancels entries stay strings
+    assert all(isinstance(uid, str) for uid in response.execution.stp_maker_cancels)
+
+
+def test_order_response_tolerates_missing_execution() -> None:
+    response = OrderResponse(
+        order=_base_order_payload(),
+        makerMatches=[],
+    )
+
+    assert response.execution is None

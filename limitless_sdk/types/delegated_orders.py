@@ -33,6 +33,7 @@ class CreateDelegatedOrderRequest(BaseModel):
     owner_id: int = Field(alias="ownerId")
     on_behalf_of: Optional[int] = Field(None, alias="onBehalfOf")
     post_only: Optional[bool] = Field(None, alias="postOnly")
+    stp_policy: Optional[str] = Field(None, alias="stpPolicy")
 
     model_config = ConfigDict(populate_by_name=True)
 
