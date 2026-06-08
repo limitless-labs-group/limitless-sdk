@@ -192,18 +192,25 @@ class OraclePriceData(TypedDict):
 
 
 class OmeOrderEvent(TypedDict, total=False):
-    """OME order lifecycle event."""
+    """OME order lifecycle event.
+
+    Covers OME lifecycle frames (``PLACEMENT``/``UPDATE``/``CANCELLATION``) and
+    the FAK/FOK terminal ``EXECUTION`` frame. ``eventId`` is a numeric serial for
+    lifecycle frames and the string ``"terminal:<orderId>"`` for ``EXECUTION``.
+    ``status`` is present only on ``EXECUTION``.
+    """
     clientOrderId: str
-    eventId: int
+    eventId: Union[int, str]
     marketId: str
     orderId: str
-    price: str
-    remainingSize: str
+    price: float
+    remainingSize: float
     side: str
     source: Literal["OME"]
+    status: Literal["FILLED", "PARTIALLY_FILLED", "KILLED"]
     timestamp: str
     token: str
-    type: Literal["PLACEMENT", "UPDATE", "CANCELLATION"]
+    type: Literal["PLACEMENT", "UPDATE", "CANCELLATION", "EXECUTION"]
     userId: int
 
 
@@ -216,7 +223,13 @@ class SettlementMakerMatch(TypedDict):
 
 
 class SettlementOrderEvent(TypedDict, total=False):
-    """Settlement order lifecycle event."""
+    """Settlement order lifecycle event.
+
+    Covers the on-chain ``MINED``/``FAILED`` settlement frames and the
+    pre-settlement per-fill ``MATCHED`` frame. On ``MATCHED`` the amounts/fees are
+    an estimate (``isEstimate`` is True) and the maker side reports a fee of 0
+    while the taker reports a real estimate.
+    """
     amountCollateral: str
     amountContracts: str
     clientOrderId: str
@@ -225,6 +238,7 @@ class SettlementOrderEvent(TypedDict, total=False):
     eventId: str
     feeAmountCollateral: str
     feeAmountContracts: str
+    isEstimate: bool
     makerMatches: List[SettlementMakerMatch]
     marketSlug: str
     orderId: str
@@ -234,10 +248,11 @@ class SettlementOrderEvent(TypedDict, total=False):
     takerAccount: str
     takerOrderId: str
     timestamp: Union[str, int, Any]
+    token: Literal["YES", "NO"]
     tokenId: str
     tradeEventId: str
     txHash: str
-    type: Literal["MINED", "FAILED"]
+    type: Literal["MINED", "FAILED", "MATCHED"]
 
 
 OrderEvent = Union[OmeOrderEvent, SettlementOrderEvent]

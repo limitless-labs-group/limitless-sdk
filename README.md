@@ -687,12 +687,36 @@ async def on_amm_price_update(data):
 
 @ws_client.on('orderEvent')
 async def on_order_event(data):
-    print("Order lifecycle event:", data)
+    # Both frames arrive on `orderEvent`; discriminate on `source` + `type`.
+    source, event_type = data.get('source'), data.get('type')
+
+    if source == 'OME' and event_type == 'EXECUTION':
+        # FAK/FOK terminal frame. eventId is "terminal:<orderId>".
+        # price / remainingSize are JSON numbers (float).
+        print(f"Execution {data['status']}: remaining {data['remainingSize']}")
+    elif source == 'SETTLEMENT' and event_type == 'MATCHED':
+        # Pre-settlement per-fill estimate (isEstimate == True).
+        # Maker side reports fee 0; taker reports a real estimate.
+        print(f"Matched {data['token']} @ {data['price']}")
+    else:
+        # Lifecycle frames: OME PLACEMENT/UPDATE/CANCELLATION, SETTLEMENT MINED/FAILED.
+        print(f"Order event {source}/{event_type}")
 
 # Connect and subscribe
 await ws_client.connect()
 await ws_client.subscribe('subscribe_market_prices', {'marketSlugs': [market_slug]})
 ```
+
+Order events (`subscribe_order_events`) arrive on `orderEvent` and cover two
+unions discriminated by `source` + `type`:
+
+- **OME** frames carry `type` of `PLACEMENT`, `UPDATE`, `CANCELLATION`, or
+  `EXECUTION` (the FAK/FOK terminal frame, which adds a `status` of `FILLED`,
+  `PARTIALLY_FILLED`, or `KILLED`). `price` and `remainingSize` are JSON numbers.
+- **SETTLEMENT** frames carry `type` of `MINED`, `FAILED`, or `MATCHED` (the
+  pre-settlement per-fill estimate, with `isEstimate=True` and a `token` of
+  `YES`/`NO`). On `MATCHED` the maker side reports a fee of 0; the taker reports
+  a real estimate.
 
 ## Error Handling
 
@@ -933,6 +957,18 @@ points = positions['accumulativePoints']
   ```
 
 ## Changelog
+
+### v1.1.0
+
+**Release Date**: June 8, 2026
+
+Adds the OME `EXECUTION` (FAK/FOK terminal) and Settlement `MATCHED` (pre-settlement per-fill) WebSocket frames, and corrects the OME numeric field types.
+
+#### Highlights
+
+- **OME `EXECUTION` frame**: `orderEvent` now models the FAK/FOK terminal frame with `type="EXECUTION"`, a `status` of `FILLED`/`PARTIALLY_FILLED`/`KILLED`, and a string `eventId` of `"terminal:<orderId>"`.
+- **Settlement `MATCHED` frame**: `orderEvent` now models the pre-settlement per-fill estimate with `type="MATCHED"`, `isEstimate`, and `token` (`YES`/`NO`).
+- **Type fix (breaking, type-only)**: OME `price`/`remainingSize` are now `float` and `eventId` is `int | str`. Runtime values never changed — OME frames always emitted these as JSON numbers; only the static types were wrong.
 
 ### v1.0.11
 
