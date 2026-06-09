@@ -119,6 +119,8 @@ from .types import (
     OrderSigningConfig,
     OrderArgs,
     MakerMatch,
+    ExecutionTotalsRaw,
+    Execution,
     OrderResponse,
     # API-token / partner types
     ScopeTrading,
@@ -292,6 +294,8 @@ __all__ = [
     "OrderSigningConfig",
     "OrderArgs",
     "MakerMatch",
+    "ExecutionTotalsRaw",
+    "Execution",
     "OrderResponse",
     # API-token / partner types
     "ScopeTrading",

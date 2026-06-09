@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - WebSocket `orderEvent` now models two additional frames on the existing union members:
   - OME `EXECUTION` (FAK/FOK terminal): `OmeOrderEvent.type` gains `"EXECUTION"`, plus a `status` of `"FILLED" | "PARTIALLY_FILLED" | "KILLED"` (present only on `EXECUTION`). Its `eventId` is the string `"terminal:<orderId>"`.
   - Settlement `MATCHED` (pre-settlement per-fill): `SettlementOrderEvent.type` gains `"MATCHED"`, plus `isEstimate: bool` and `token: "YES" | "NO"`. On `MATCHED` the maker side reports a fee of 0 and the taker reports a real estimate.
+- The POST /orders response now models the `execution` object (`Execution` / `ExecutionTotalsRaw`), previously dropped. It carries the settlement/fee summary and the taker-delay outcome: `matched`, `settlementStatus` (plain string — known values `UNMATCHED` / `MATCHED` / `MINED` / `CONFIRMED` / `RETRYING` / `FAILED` / `DELAYED`), optional `tradeEventId` / `txHash` / `clientOrderId`, `eligibleAt` (ISO-8601, present only when `settlementStatus == "DELAYED"` — when the order is released to the matching engine), `feeRateBps`, `effectiveFeeBps`, and the raw integer-string `totalsRaw`. Modeled optionally on `OrderResponse` for back-compat. Additive, non-breaking.
 
 ### Changed
 

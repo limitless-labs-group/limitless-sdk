@@ -338,15 +338,84 @@ class MakerMatch(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class ExecutionTotalsRaw(BaseModel):
+    """Raw integer-string totals for an order execution.
+
+    Every field is a decimal string carrying a raw integer amount (no scaling
+    applied). `contracts*` are share quantities; `usd*` are USDC amounts.
+
+    Attributes:
+        contracts_gross: Gross matched contracts
+        contracts_fee: Contracts charged as fee
+        contracts_net: Net contracts after fee
+        usd_gross: Gross USDC value
+        usd_fee: USDC charged as fee
+        usd_net: Net USDC value after fee
+    """
+
+    contracts_gross: str = Field(alias="contractsGross")
+    contracts_fee: str = Field(alias="contractsFee")
+    contracts_net: str = Field(alias="contractsNet")
+    usd_gross: str = Field(alias="usdGross")
+    usd_fee: str = Field(alias="usdFee")
+    usd_net: str = Field(alias="usdNet")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class Execution(BaseModel):
+    """Execution outcome for a submitted order.
+
+    Settlement/fee summary plus the taker-delay outcome. The server always
+    returns this object on POST /orders, but it is modeled optionally on the
+    response for back-compat safety.
+
+    Attributes:
+        matched: Whether the order matched anything.
+        settlement_status: Settlement state as a plain string (NOT a closed
+            enum) for forward-compat — the server adds values over time.
+            Known values: "UNMATCHED" | "MATCHED" | "MINED" | "CONFIRMED" |
+            "RETRYING" | "FAILED" | "DELAYED". "DELAYED" means the taker order
+            was accepted but is held by a per-market taker delay before being
+            released to the matching engine.
+        trade_event_id: Trade event identifier (when settled).
+        tx_hash: Settlement transaction hash (nullable).
+        client_order_id: Echoed client order id, if one was supplied.
+        eligible_at: ISO-8601 timestamp; present only when
+            settlement_status == "DELAYED". The time the order is released to
+            the matching engine.
+        fee_rate_bps: Configured fee rate in integer basis points.
+        effective_fee_bps: Effective fee actually applied, in integer basis points.
+        totals_raw: Raw integer-string totals for the execution.
+    """
+
+    matched: bool
+    # Plain string, not a closed enum — see docstring for known values.
+    settlement_status: str = Field(alias="settlementStatus")
+    trade_event_id: Optional[str] = Field(None, alias="tradeEventId")
+    tx_hash: Optional[str] = Field(None, alias="txHash")
+    client_order_id: Optional[str] = Field(None, alias="clientOrderId")
+    eligible_at: Optional[str] = Field(None, alias="eligibleAt")
+    fee_rate_bps: int = Field(alias="feeRateBps")
+    effective_fee_bps: int = Field(alias="effectiveFeeBps")
+    totals_raw: ExecutionTotalsRaw = Field(alias="totalsRaw")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class OrderResponse(BaseModel):
     """Order response from API.
 
     Attributes:
         order: Order details
         maker_matches: List of maker matches (for FOK or partial GTC fills)
+        execution: Execution outcome — settlement/fee summary plus the
+            taker-delay outcome. The server always returns this; modeled
+            optionally for back-compat safety.
     """
 
     order: SignedOrder
     maker_matches: Optional[List[MakerMatch]] = Field(None, alias="makerMatches")
+    execution: Optional[Execution] = Field(None, alias="execution")
 
     model_config = ConfigDict(populate_by_name=True)
