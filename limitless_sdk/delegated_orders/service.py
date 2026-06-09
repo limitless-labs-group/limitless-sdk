@@ -84,6 +84,8 @@ class DelegatedOrderService:
                 "expiration": str(unsigned_order.expiration),
             }
         )
+        # stp_policy is sent top-level; do NOT add it to the signed order
+        # (it would change the EIP-712 signature).
         payload = CreateDelegatedOrderRequest(
             order=submission,
             order_type=order_type.value,

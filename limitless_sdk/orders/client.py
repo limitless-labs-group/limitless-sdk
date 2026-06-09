@@ -211,9 +211,11 @@ class OrderClient:
             taker: Optional taker address
             post_only: Optional. When true, rejects the order if it would immediately match.
                 Supported only for GTC orders. Defaults to false when omitted.
-            stp_policy: Optional self-trade prevention policy. One of "cancel_both",
-                "cancel_maker", "cancel_taker". Sent as a top-level request field (never
-                signed). When omitted, the venue defaults to "cancel_maker".
+            stp_policy: Optional self-trade-prevention policy: what happens when this
+                order would match the same account's own resting orders.
+                "cancel_maker" (default) cancels the resting order and lets this order
+                continue; "cancel_taker" rejects this order; "cancel_both" does both.
+                Omit to use the server default ("cancel_maker").
 
         Returns:
             OrderResponse with order details and maker matches
@@ -353,6 +355,8 @@ class OrderClient:
 
         signed_order = SignedOrder(**unsigned_order.model_dump(), signature=signature)
 
+        # stp_policy is sent top-level; do NOT add it to the signed order
+        # (it would change the EIP-712 signature).
         payload = CreateOrderDto(
             order=signed_order,
             owner_id=user_data.user_id,

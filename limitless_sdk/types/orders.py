@@ -219,9 +219,8 @@ class CreateOrderDto(BaseModel):
         market_slug: Market slug identifier
         post_only: Optional. When true, rejects the order if it would immediately match.
             Supported only for GTC orders. Defaults to false when omitted.
-        stp_policy: Optional self-trade prevention policy. One of "cancel_both",
-            "cancel_maker", "cancel_taker". Top-level request field, never part of the
-            signed order. When omitted, the venue defaults to "cancel_maker".
+        stp_policy: Optional self-trade-prevention policy. Omit to use the server
+            default ("cancel_maker").
     """
 
     order: SignedOrder
@@ -304,9 +303,8 @@ class OrderArgs(BaseModel):
         taker: Optional taker address
         post_only: Optional. When true, rejects the order if it would immediately match.
             Supported only for GTC orders. Defaults to false when omitted.
-        stp_policy: Optional self-trade prevention policy ("cancel_both",
-            "cancel_maker", "cancel_taker"). Defaults to "cancel_maker" at the venue
-            when omitted.
+        stp_policy: Optional self-trade-prevention policy. Omit to use the server
+            default ("cancel_maker").
 
     Example:
         >>> from limitless_sdk.types import OrderArgs, Side
