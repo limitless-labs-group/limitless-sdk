@@ -41,6 +41,9 @@ Create SELL FOK order with `maker_amount`.
 ### [10_create_buy_fak_order.py](./10_create_buy_fak_order.py)
 Create BUY FAK (Fill-And-Kill) order with `price` + `size`.
 
+### [11_create_order_with_stp.py](./11_create_order_with_stp.py)
+Create an order with a self-trade-prevention `stp_policy` and read the `execution` outcome.
+
 ### [06_retry_handling.py](./06_retry_handling.py)
 Retry mechanism - 3 retries on 404 errors using `@retry_on_errors` decorator.
 

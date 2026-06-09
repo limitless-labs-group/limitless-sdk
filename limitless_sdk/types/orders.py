@@ -219,6 +219,8 @@ class CreateOrderDto(BaseModel):
         market_slug: Market slug identifier
         post_only: Optional. When true, rejects the order if it would immediately match.
             Supported only for GTC orders. Defaults to false when omitted.
+        stp_policy: Optional self-trade-prevention policy. Omit to use the server
+            default ("cancel_maker").
     """
 
     order: SignedOrder
@@ -226,6 +228,7 @@ class CreateOrderDto(BaseModel):
     order_type: str = Field(alias="orderType")
     market_slug: str = Field(alias="marketSlug")
     post_only: Optional[bool] = Field(None, alias="postOnly")
+    stp_policy: Optional[str] = Field(None, alias="stpPolicy")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -300,6 +303,8 @@ class OrderArgs(BaseModel):
         taker: Optional taker address
         post_only: Optional. When true, rejects the order if it would immediately match.
             Supported only for GTC orders. Defaults to false when omitted.
+        stp_policy: Optional self-trade-prevention policy. Omit to use the server
+            default ("cancel_maker").
 
     Example:
         >>> from limitless_sdk.types import OrderArgs, Side
@@ -318,6 +323,7 @@ class OrderArgs(BaseModel):
     expiration: Optional[int] = None
     taker: Optional[str] = None
     post_only: Optional[bool] = None
+    stp_policy: Optional[str] = None
 
 
 class MakerMatch(BaseModel):
@@ -338,15 +344,84 @@ class MakerMatch(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class OrderExecutionTotalsRaw(BaseModel):
+    """Raw decimal totals for an order execution.
+
+    All six fields are decimal STRINGS as sent by the API. They are not coerced
+    to numbers so callers keep full precision.
+
+    Attributes:
+        contracts_gross: Gross contracts matched
+        contracts_fee: Contracts taken as fee
+        contracts_net: Net contracts after fee
+        usd_gross: Gross USD value matched
+        usd_fee: USD taken as fee
+        usd_net: Net USD value after fee
+    """
+
+    contracts_gross: str = Field(alias="contractsGross")
+    contracts_fee: str = Field(alias="contractsFee")
+    contracts_net: str = Field(alias="contractsNet")
+    usd_gross: str = Field(alias="usdGross")
+    usd_fee: str = Field(alias="usdFee")
+    usd_net: str = Field(alias="usdNet")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class OrderExecution(BaseModel):
+    """Execution outcome reported alongside an order response.
+
+    Always present on the create-order response. Carries the settlement state plus
+    the self-trade-prevention signal: the taker STP reject surfaces here as a
+    ``reason`` (HTTP-only; example value "STP_TAKER_REJECTED"), and any maker orders
+    cancelled by STP are listed in ``stp_maker_cancels``.
+
+    Type note: ``fee_rate_bps`` and ``effective_fee_bps`` are NUMBERS; ``totals_raw``
+    fields and ``stp_maker_cancels`` entries are STRINGS. They are not coerced.
+
+    Attributes:
+        matched: Whether the order matched any liquidity
+        settlement_status: Plain settlement-state string (e.g. "MATCHED", "UNMATCHED",
+            "CANCELED", "DELAYED", "MINED", "CONFIRMED", "RETRYING", "FAILED"). No enum.
+        trade_event_id: Trade event UUID when present
+        tx_hash: Settlement transaction hash when present (may be null)
+        client_order_id: Client order id echo when present
+        eligible_at: ISO datetime the order becomes eligible (DELAYED only)
+        reason: STP / rejection signal string (e.g. "STP_TAKER_REJECTED")
+        stp_maker_cancels: UUIDs of maker orders cancelled by STP (set only when non-empty)
+        fee_rate_bps: Configured fee rate in basis points
+        effective_fee_bps: Effective fee rate applied in basis points
+        totals_raw: Raw decimal totals for the execution
+    """
+
+    matched: bool
+    settlement_status: str = Field(alias="settlementStatus")
+    trade_event_id: Optional[str] = Field(None, alias="tradeEventId")
+    tx_hash: Optional[str] = Field(None, alias="txHash")
+    client_order_id: Optional[str] = Field(None, alias="clientOrderId")
+    eligible_at: Optional[str] = Field(None, alias="eligibleAt")
+    reason: Optional[str] = None
+    stp_maker_cancels: Optional[List[str]] = Field(None, alias="stpMakerCancels")
+    fee_rate_bps: int = Field(alias="feeRateBps")
+    effective_fee_bps: int = Field(alias="effectiveFeeBps")
+    totals_raw: OrderExecutionTotalsRaw = Field(alias="totalsRaw")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class OrderResponse(BaseModel):
     """Order response from API.
 
     Attributes:
         order: Order details
         maker_matches: List of maker matches (for FOK or partial GTC fills)
+        execution: Execution outcome (settlement state, fees, totals, STP signals).
+            Always present from a current API; Optional for fixture/back-compat.
     """
 
     order: SignedOrder
     maker_matches: Optional[List[MakerMatch]] = Field(None, alias="makerMatches")
+    execution: Optional[OrderExecution] = None
 
     model_config = ConfigDict(populate_by_name=True)

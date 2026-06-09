@@ -5,6 +5,25 @@ All notable changes to the Limitless Exchange Python SDK will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Self-trade prevention (STP) support:
+  - `stp_policy` parameter on `OrderClient.create_order()` and
+    `DelegatedOrderService.create_order()`, sent as a top-level `stpPolicy` request
+    field (`"cancel_both"` / `"cancel_maker"` / `"cancel_taker"`). It is never part of
+    the signed EIP-712 order; when omitted the venue defaults to `cancel_maker`.
+  - `stp_policy` field on `OrderArgs`, `CreateOrderDto`, and `CreateDelegatedOrderRequest`.
+- Order execution response now surfaced instead of dropped:
+  - New `OrderExecution` and `OrderExecutionTotalsRaw` models.
+  - `OrderResponse.execution` exposes settlement state, fees, raw totals, and STP
+    signals (`reason`, `stp_maker_cancels`). Tolerant: `Optional`, so responses without
+    an execution object still parse.
+- WebSocket `OmeOrderEvent` now types an optional `reason` field; an STP maker cancel
+  arrives on a `CANCELLATION` frame as `reason: "STP_MAKER_CANCELLED"`.
+- Example `examples/11_create_order_with_stp.py`.
+
 ## [1.0.11]
 
 ### Added
