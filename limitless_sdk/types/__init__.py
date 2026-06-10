@@ -43,6 +43,8 @@ from .orders import (
     OrderSigningConfig,
     OrderArgs,
     MakerMatch,
+    ExecutionTotalsRaw,
+    Execution,
     OrderResponse,
 )
 from .api_tokens import (
@@ -148,6 +150,8 @@ __all__ = [
     "OrderSigningConfig",
     "OrderArgs",
     "MakerMatch",
+    "ExecutionTotalsRaw",
+    "Execution",
     "OrderResponse",
     # API-token / partner types
     "ScopeTrading",

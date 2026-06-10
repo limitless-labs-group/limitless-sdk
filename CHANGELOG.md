@@ -5,6 +5,20 @@ All notable changes to the Limitless Exchange Python SDK will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0]
+
+### Added
+
+- WebSocket `orderEvent` now models two additional frames on the existing union members:
+  - OME `EXECUTION` (FAK/FOK terminal): `OmeOrderEvent.type` gains `"EXECUTION"`, plus a `status` of `"FILLED" | "PARTIALLY_FILLED" | "KILLED"` (present only on `EXECUTION`). Its `eventId` is the string `"terminal:<orderId>"`.
+  - Settlement `MATCHED` (pre-settlement per-fill): `SettlementOrderEvent.type` gains `"MATCHED"`, plus `isEstimate: bool` and `token: "YES" | "NO"`. On `MATCHED` the maker side reports a fee of 0 and the taker reports a real estimate.
+- The POST /orders response now models the `execution` object (`Execution` / `ExecutionTotalsRaw`), previously dropped. It carries the settlement/fee summary and the taker-delay outcome: `matched`, `settlementStatus` (plain string — known values `UNMATCHED` / `MATCHED` / `MINED` / `CONFIRMED` / `RETRYING` / `FAILED` / `DELAYED`), optional `tradeEventId` / `txHash` / `clientOrderId`, `eligibleAt` (ISO-8601, present only when `settlementStatus == "DELAYED"` — when the order is released to the matching engine), `feeRateBps`, `effectiveFeeBps`, and the raw integer-string `totalsRaw`. Modeled optionally on `OrderResponse` for back-compat. Additive, non-breaking.
+
+### Changed
+
+- **BREAKING (type-only):** `OmeOrderEvent.price` and `OmeOrderEvent.remainingSize` are now typed `float` instead of `str`, and `OmeOrderEvent.eventId` is now `Union[int, str]` instead of `int`. The runtime values never changed — all OME frames have always emitted `price`/`remainingSize` as JSON numbers and the terminal `eventId` as a string; only the static types are corrected. Consumers that parsed these as strings should drop the conversion.
+- README, examples docs, package metadata, lockfile, and runtime `__version__` now target `v1.1.0`.
+
 ## [1.0.11]
 
 ### Added

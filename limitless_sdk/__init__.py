@@ -12,7 +12,7 @@ Example:
     >>> markets = await market_fetcher.get_markets()
 """
 
-__version__ = "1.0.11"
+__version__ = "1.1.0"
 
 # API layer - HTTP client and error handling
 from .api import (
@@ -119,6 +119,8 @@ from .types import (
     OrderSigningConfig,
     OrderArgs,
     MakerMatch,
+    ExecutionTotalsRaw,
+    Execution,
     OrderResponse,
     # API-token / partner types
     ScopeTrading,
@@ -292,6 +294,8 @@ __all__ = [
     "OrderSigningConfig",
     "OrderArgs",
     "MakerMatch",
+    "ExecutionTotalsRaw",
+    "Execution",
     "OrderResponse",
     # API-token / partner types
     "ScopeTrading",
