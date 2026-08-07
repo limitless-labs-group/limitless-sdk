@@ -1,9 +1,9 @@
 """Portfolio data fetcher for Limitless Exchange."""
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from urllib.parse import quote
 
-from ..api.http_client import HttpClient
+from ..api.http_client import HttpClient, HttpRawResponse
 from ..types.portfolio import Position, HistoryResponse
 from ..types.logger import ILogger, NoOpLogger
 
@@ -41,7 +41,9 @@ class PortfolioFetcher:
         self._http_client = http_client
         self._logger = logger or NoOpLogger()
 
-    async def get_profile(self, address: str) -> dict:
+    async def get_profile(
+        self, address: str, with_raw_response: bool = False
+    ) -> Union[dict, HttpRawResponse]:
         """Get user profile for a specific wallet address.
 
         Returns user profile data including user ID and fee rate.
@@ -69,6 +71,11 @@ class PortfolioFetcher:
         self._logger.debug("Fetching user profile", {"address": profile_address})
 
         try:
+            if with_raw_response:
+                return await self._http_client.get_raw(
+                    f"/profiles/{quote(profile_address, safe='')}"
+                )
+
             response_data = await self._http_client.get(
                 f"/profiles/{quote(profile_address, safe='')}"
             )
@@ -86,7 +93,9 @@ class PortfolioFetcher:
             )
             raise
 
-    async def get_current_profile(self) -> dict:
+    async def get_current_profile(
+        self, with_raw_response: bool = False
+    ) -> Union[dict, HttpRawResponse]:
         """Get the authenticated caller's private profile.
 
         Calls ``GET /profiles/me`` so callers do not need to pass or persist the
@@ -107,6 +116,9 @@ class PortfolioFetcher:
         self._logger.debug("Fetching current user profile")
 
         try:
+            if with_raw_response:
+                return await self._http_client.get_raw("/profiles/me")
+
             response_data = await self._http_client.get("/profiles/me")
             self._logger.info("Current user profile fetched successfully")
             return response_data  # Return raw API response 1:1
@@ -115,7 +127,9 @@ class PortfolioFetcher:
             self._logger.error("Failed to fetch current user profile", error)
             raise
 
-    async def get_positions(self) -> dict:
+    async def get_positions(
+        self, with_raw_response: bool = False
+    ) -> Union[dict, HttpRawResponse]:
         """Get all positions for the authenticated user.
 
         Returns:
@@ -134,6 +148,9 @@ class PortfolioFetcher:
         self._logger.debug("Fetching positions")
 
         try:
+            if with_raw_response:
+                return await self._http_client.get_raw("/portfolio/positions")
+
             response_data = await self._http_client.get("/portfolio/positions")
             self._logger.info("Positions fetched successfully")
             return response_data  # Return raw API response 1:1
@@ -178,7 +195,12 @@ class PortfolioFetcher:
         response = await self.get_positions()
         return response.get('amm', [])
 
-    async def get_user_history(self, cursor: str | None = None, limit: int = 20) -> dict:
+    async def get_user_history(
+        self,
+        cursor: str | None = None,
+        limit: int = 20,
+        with_raw_response: bool = False,
+    ) -> Union[dict, HttpRawResponse]:
         """Get user history with cursor-based pagination.
 
         Includes AMM trades, CLOB trades, Negrisk trades & conversions.
@@ -216,6 +238,10 @@ class PortfolioFetcher:
             # Always send cursor= (empty on first page) to use cursor flow;
             # omitting it falls back to the legacy page/limit path.
             params = {"cursor": cursor or "", "limit": limit}
+            if with_raw_response:
+                return await self._http_client.get_raw(
+                    "/portfolio/history", params=params
+                )
             response_data = await self._http_client.get("/portfolio/history", params=params)
 
             self._logger.info("User history fetched successfully")

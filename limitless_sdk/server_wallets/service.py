@@ -1,11 +1,11 @@
 """Server-managed wallet service."""
 
 import re
-from typing import Optional
+from typing import Optional, Union
 
 from eth_utils import is_address
 
-from ..api.http_client import HttpClient
+from ..api.http_client import HttpClient, HttpRawResponse
 from ..types.logger import ILogger, NoOpLogger
 from ..types.server_wallets import (
     RedeemServerWalletInput,
@@ -34,7 +34,8 @@ class ServerWalletService:
         self,
         condition_id: str,
         on_behalf_of: int,
-    ) -> RedeemServerWalletResponse:
+        with_raw_response: bool = False,
+    ) -> Union[RedeemServerWalletResponse, HttpRawResponse]:
         self._require_hmac_auth("redeem_server_wallet_positions")
         self._validate_condition_id(condition_id)
         self._validate_on_behalf_of(on_behalf_of)
@@ -52,10 +53,10 @@ class ServerWalletService:
             },
         )
 
-        response = await self._http_client.post(
-            "/portfolio/redeem",
-            payload.model_dump(by_alias=True, exclude_none=True),
-        )
+        body = payload.model_dump(by_alias=True, exclude_none=True)
+        if with_raw_response:
+            return await self._http_client.post_raw("/portfolio/redeem", body)
+        response = await self._http_client.post("/portfolio/redeem", body)
         return RedeemServerWalletResponse(**response)
 
     async def withdraw(
@@ -64,7 +65,8 @@ class ServerWalletService:
         on_behalf_of: Optional[int] = None,
         token: Optional[str] = None,
         destination: Optional[str] = None,
-    ) -> WithdrawServerWalletResponse:
+        with_raw_response: bool = False,
+    ) -> Union[WithdrawServerWalletResponse, HttpRawResponse]:
         self._require_hmac_auth("withdraw_server_wallet_funds")
         self._validate_amount(amount)
 
@@ -95,10 +97,10 @@ class ServerWalletService:
             },
         )
 
-        response = await self._http_client.post(
-            "/portfolio/withdraw",
-            payload.model_dump(by_alias=True, exclude_none=True),
-        )
+        body = payload.model_dump(by_alias=True, exclude_none=True)
+        if with_raw_response:
+            return await self._http_client.post_raw("/portfolio/withdraw", body)
+        response = await self._http_client.post("/portfolio/withdraw", body)
         return WithdrawServerWalletResponse(**response)
 
     def _require_hmac_auth(self, operation: str) -> None:

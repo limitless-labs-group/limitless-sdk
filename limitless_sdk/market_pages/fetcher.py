@@ -3,7 +3,7 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import parse_qs, urlencode, urlparse
 
-from ..api.http_client import HttpClient
+from ..api.http_client import HttpClient, HttpRawResponse
 from ..types.logger import ILogger, NoOpLogger
 from ..types.markets import Market
 from ..types.market_pages import (
@@ -28,14 +28,28 @@ class MarketPageFetcher:
         self._http_client = http_client
         self._logger = logger or NoOpLogger()
 
-    async def get_navigation(self) -> List[NavigationNode]:
+    async def get_navigation(
+        self, with_raw_response: bool = False
+    ) -> Union[List[NavigationNode], HttpRawResponse]:
         """Get navigation tree."""
         self._logger.debug("Fetching navigation tree")
+        if with_raw_response:
+            return await self._http_client.get_raw("/navigation")
         response_data = await self._http_client.get("/navigation")
         return [NavigationNode.model_validate(item) for item in response_data]
 
-    async def get_market_page_by_path(self, path: str) -> MarketPage:
-        """Resolve market page by path with manual 301 redirect handling."""
+    async def get_market_page_by_path(
+        self, path: str, with_raw_response: bool = False
+    ) -> Union[MarketPage, HttpRawResponse]:
+        """Resolve market page by path with manual 301 redirect handling.
+
+        In raw mode the request follows redirects and returns the final raw
+        response rather than resolving into a ``MarketPage`` model.
+        """
+        if with_raw_response:
+            return await self._http_client.get_raw(
+                "/market-pages/by-path", params={"path": path}
+            )
         return await self._get_market_page_by_path_internal(path, depth=0)
 
     async def _get_market_page_by_path_internal(self, path: str, depth: int) -> MarketPage:
@@ -103,7 +117,8 @@ class MarketPageFetcher:
         self,
         page_id: str,
         params: Optional[Union[MarketPageMarketsParams, Dict[str, Any]]] = None,
-    ) -> MarketPageMarketsResponse:
+        with_raw_response: bool = False,
+    ) -> Union[MarketPageMarketsResponse, HttpRawResponse]:
         """Get markets for a market page with optional filtering and pagination."""
         if params is None:
             parsed_params = MarketPageMarketsParams()
@@ -139,6 +154,8 @@ class MarketPageFetcher:
             endpoint = f"{endpoint}?{query_string}"
 
         self._logger.debug("Fetching market-page markets", {"page_id": page_id, "params": parsed_params.model_dump()})
+        if with_raw_response:
+            return await self._http_client.get_raw(endpoint)
         response_data = await self._http_client.get(endpoint)
 
         raw_markets = response_data.get("data", [])
@@ -156,23 +173,38 @@ class MarketPageFetcher:
 
         raise RuntimeError("Invalid market-page response: expected `pagination` or `cursor` metadata")
 
-    async def get_property_keys(self) -> List[PropertyKey]:
+    async def get_property_keys(
+        self, with_raw_response: bool = False
+    ) -> Union[List[PropertyKey], HttpRawResponse]:
         """List all property keys with options."""
+        if with_raw_response:
+            return await self._http_client.get_raw("/property-keys")
         response_data = await self._http_client.get("/property-keys")
         return [PropertyKey.model_validate(item) for item in response_data]
 
-    async def get_property_key(self, key_id: str) -> PropertyKey:
+    async def get_property_key(
+        self, key_id: str, with_raw_response: bool = False
+    ) -> Union[PropertyKey, HttpRawResponse]:
         """Get a single property key by ID."""
+        if with_raw_response:
+            return await self._http_client.get_raw(f"/property-keys/{key_id}")
         response_data = await self._http_client.get(f"/property-keys/{key_id}")
         return PropertyKey.model_validate(response_data)
 
-    async def get_property_options(self, key_id: str, parent_id: Optional[str] = None) -> List[PropertyOption]:
+    async def get_property_options(
+        self,
+        key_id: str,
+        parent_id: Optional[str] = None,
+        with_raw_response: bool = False,
+    ) -> Union[List[PropertyOption], HttpRawResponse]:
         """List options for a property key, optionally filtered by parent option ID."""
         endpoint = f"/property-keys/{key_id}/options"
         if parent_id:
             query = urlencode({"parentId": parent_id})
             endpoint = f"{endpoint}?{query}"
 
+        if with_raw_response:
+            return await self._http_client.get_raw(endpoint)
         response_data = await self._http_client.get(endpoint)
         return [PropertyOption.model_validate(item) for item in response_data]
 

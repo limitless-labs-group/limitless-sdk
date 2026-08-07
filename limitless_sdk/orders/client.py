@@ -1,9 +1,9 @@
 """Order client for managing orders on Limitless Exchange."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from eth_account import Account
 
-from ..api.http_client import HttpClient
+from ..api.http_client import HttpClient, HttpRawResponse
 from ..types.orders import (
     Side,
     OrderType,
@@ -195,7 +195,8 @@ class OrderClient:
         expiration: Optional[int] = None,
         taker: Optional[str] = None,
         post_only: Optional[bool] = None,
-    ) -> OrderResponse:
+        with_raw_response: bool = False,
+    ) -> Union[OrderResponse, HttpRawResponse]:
         """Create and submit a new order.
 
         This method handles the complete order creation flow:
@@ -372,6 +373,9 @@ class OrderClient:
             "market_slug": market_slug,
         })
 
+        if with_raw_response:
+            return await self._http_client.post_raw("/orders", payload_dict)
+
         response_data = await self._http_client.post(
             "/orders", payload_dict
         )
@@ -494,7 +498,8 @@ class OrderClient:
         timestamp: Optional[int] = None,
         recv_window: Optional[int] = None,
         stp_policy: Optional[StpPolicy] = None,
-    ) -> CancelReplaceResponse:
+        with_raw_response: bool = False,
+    ) -> Union[CancelReplaceResponse, HttpRawResponse]:
         request = await self._build_cancel_replace_request(
             order_id=order_id,
             client_order_id=client_order_id,
@@ -514,28 +519,35 @@ class OrderClient:
             recv_window=recv_window,
             stp_policy=stp_policy,
         )
+        body = request.model_dump(by_alias=True, exclude_none=True, mode="json")
+        if with_raw_response:
+            return await self._http_client.post_raw(
+                "/orders/cancel-replace", body, accepted_statuses={409}
+            )
         response = await self._http_client.post(
             "/orders/cancel-replace",
-            request.model_dump(by_alias=True, exclude_none=True, mode="json"),
+            body,
             accepted_statuses={409},
         )
         return CancelReplaceResponse(**response)
 
     async def cancel_replace_batch(
-        self, operations: List[Dict[str, Any]]
-    ) -> CancelReplaceBatchResponse:
+        self, operations: List[Dict[str, Any]], with_raw_response: bool = False
+    ) -> Union[CancelReplaceBatchResponse, HttpRawResponse]:
         requests = [
             await self._build_cancel_replace_request(**dict(operation))
             for operation in operations
         ]
         payload = CancelReplaceBatchRequest(operations=requests)
-        response = await self._http_client.post(
-            "/orders/cancel-replace/batch",
-            payload.model_dump(by_alias=True, exclude_none=True, mode="json"),
-        )
+        body = payload.model_dump(by_alias=True, exclude_none=True, mode="json")
+        if with_raw_response:
+            return await self._http_client.post_raw("/orders/cancel-replace/batch", body)
+        response = await self._http_client.post("/orders/cancel-replace/batch", body)
         return CancelReplaceBatchResponse(**response)
 
-    async def cancel(self, order_id: str) -> dict:
+    async def cancel(
+        self, order_id: str, with_raw_response: bool = False
+    ) -> Union[dict, HttpRawResponse]:
         """Cancel an order by ID.
 
         Args:
@@ -553,6 +565,9 @@ class OrderClient:
         """
         self._logger.info("Cancelling order", {"order_id": order_id})
 
+        if with_raw_response:
+            return await self._http_client.delete_raw(f"/orders/{order_id}")
+
         response = await self._http_client.delete(f"/orders/{order_id}")
 
         self._logger.info(
@@ -562,7 +577,9 @@ class OrderClient:
 
         return response
 
-    async def cancel_all(self, market_slug: str) -> dict:
+    async def cancel_all(
+        self, market_slug: str, with_raw_response: bool = False
+    ) -> Union[dict, HttpRawResponse]:
         """Cancel all orders for a specific market.
 
         Args:
@@ -579,6 +596,9 @@ class OrderClient:
             >>> print(result["message"])  # "Orders canceled successfully"
         """
         self._logger.info("Cancelling all orders for market", {"market_slug": market_slug})
+
+        if with_raw_response:
+            return await self._http_client.delete_raw(f"/orders/all/{market_slug}")
 
         response = await self._http_client.delete(f"/orders/all/{market_slug}")
 

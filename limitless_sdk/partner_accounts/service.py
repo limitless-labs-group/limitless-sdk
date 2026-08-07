@@ -3,7 +3,7 @@
 from typing import Any, Dict, Optional, Union
 from urllib.parse import quote
 
-from ..api.http_client import HttpClient
+from ..api.http_client import HttpClient, HttpRawResponse
 from ..types.logger import ILogger, NoOpLogger
 from ..types.partner_accounts import (
     CreatePartnerAccountEOAHeaders,
@@ -41,7 +41,8 @@ class PartnerAccountService:
         self,
         payload: CreatePartnerAccountInput,
         eoa_headers: Optional[CreatePartnerAccountEOAHeaders] = None,
-    ) -> PartnerAccountResponse:
+        with_raw_response: bool = False,
+    ) -> Union[PartnerAccountResponse, HttpRawResponse]:
         self._http_client.require_auth("create_partner_account")
 
         if (
@@ -74,9 +75,16 @@ class PartnerAccountService:
             },
         )
 
+        body = payload.model_dump(by_alias=True, exclude_none=True)
+        if with_raw_response:
+            return await self._http_client.post_raw_with_headers(
+                "/profiles/partner-accounts",
+                body,
+                headers=headers,
+            )
         response = await self._http_client.post_with_headers(
             "/profiles/partner-accounts",
-            payload.model_dump(by_alias=True, exclude_none=True),
+            body,
             headers=headers,
         )
         return PartnerAccountResponse(**response)
@@ -84,7 +92,8 @@ class PartnerAccountService:
     async def list_accounts(
         self,
         params: Optional[Union[ListPartnerAccountsParams, Dict[str, Any]]] = None,
-    ) -> ListPartnerAccountsResponse:
+        with_raw_response: bool = False,
+    ) -> Union[ListPartnerAccountsResponse, HttpRawResponse]:
         """List or recover partner-owned accounts created by the authenticated partner.
 
         Requires HMAC-scoped API-token auth with ``account_creation``. Optional
@@ -100,6 +109,11 @@ class PartnerAccountService:
 
         self._logger.debug("Listing partner accounts", query_params)
 
+        if with_raw_response:
+            return await self._http_client.get_raw(
+                "/profiles/partner-accounts",
+                params=query_params or None,
+            )
         response = await self._http_client.get(
             "/profiles/partner-accounts",
             params=query_params or None,
@@ -109,7 +123,8 @@ class PartnerAccountService:
     async def check_allowances(
         self,
         profile_id: int,
-    ) -> PartnerAccountAllowanceResponse:
+        with_raw_response: bool = False,
+    ) -> Union[PartnerAccountAllowanceResponse, HttpRawResponse]:
         """Check delegated-trading allowance readiness from live chain state."""
 
         self._require_hmac_auth(
@@ -123,13 +138,16 @@ class PartnerAccountService:
             {"profile_id": profile_id},
         )
 
+        if with_raw_response:
+            return await self._http_client.get_raw(path)
         response = await self._http_client.get(path)
         return PartnerAccountAllowanceResponse(**response)
 
     async def retry_allowances(
         self,
         profile_id: int,
-    ) -> PartnerAccountAllowanceResponse:
+        with_raw_response: bool = False,
+    ) -> Union[PartnerAccountAllowanceResponse, HttpRawResponse]:
         """Retry delegated-trading allowances that remain missing after a live chain re-check.
 
         Submitted targets in the response mean this retry request submitted a
@@ -148,6 +166,8 @@ class PartnerAccountService:
             {"profile_id": profile_id},
         )
 
+        if with_raw_response:
+            return await self._http_client.post_raw(f"{path}/retry", {})
         response = await self._http_client.post(f"{path}/retry", {})
         return PartnerAccountAllowanceResponse(**response)
 
@@ -155,7 +175,8 @@ class PartnerAccountService:
         self,
         identity_token: str,
         payload: PartnerWithdrawalAddressInput,
-    ) -> PartnerWithdrawalAddressResponse:
+        with_raw_response: bool = False,
+    ) -> Union[PartnerWithdrawalAddressResponse, HttpRawResponse]:
         """Add an active partner withdrawal destination allowlist entry.
 
         This endpoint uses Privy identity-token auth. API-token auth is not used
@@ -172,10 +193,17 @@ class PartnerAccountService:
             {"address": payload.address},
         )
 
+        body = payload.model_dump(by_alias=True, exclude_none=True)
+        if with_raw_response:
+            return await self._http_client.post_raw_with_identity(
+                "/portfolio/withdrawal-addresses",
+                identity_token,
+                body,
+            )
         response = await self._http_client.post_with_identity(
             "/portfolio/withdrawal-addresses",
             identity_token,
-            payload.model_dump(by_alias=True, exclude_none=True),
+            body,
         )
         return PartnerWithdrawalAddressResponse(**response)
 
@@ -183,7 +211,8 @@ class PartnerAccountService:
         self,
         identity_token: str,
         address: str,
-    ) -> None:
+        with_raw_response: bool = False,
+    ) -> Optional[HttpRawResponse]:
         """Remove a partner withdrawal destination allowlist entry."""
 
         if not identity_token:
@@ -196,10 +225,11 @@ class PartnerAccountService:
             {"address": address},
         )
 
-        await self._http_client.delete_with_identity(
-            f"/portfolio/withdrawal-addresses/{quote(address, safe='')}",
-            identity_token,
-        )
+        path = f"/portfolio/withdrawal-addresses/{quote(address, safe='')}"
+        if with_raw_response:
+            return await self._http_client.delete_raw_with_identity(path, identity_token)
+        await self._http_client.delete_with_identity(path, identity_token)
+        return None
 
     def _require_hmac_auth(self, operation: str, error_message: str) -> None:
         self._http_client.require_auth(operation)

@@ -4,12 +4,14 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from limitless_sdk.api.http_client import HttpRawResponse
 from limitless_sdk.server_wallets import ServerWalletService
 
 
 VALID_CONDITION_ID = "0x" + ("ab" * 32)
 VALID_ADDRESS = "0x1234567890123456789012345678901234567890"
 VALID_DESTINATION = "0x0F3262730c909408042F9Da345a916dc0e1F9787"
+HMAC_CREDS = {"token_id": "token-1", "secret": "secret-1"}
 
 
 @pytest.mark.asyncio
@@ -261,6 +263,38 @@ async def test_server_wallet_rejects_invalid_on_behalf_of_before_network():
     ):
         await service.withdraw(amount="1000000")
 
+    http_client.post.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_redeem_positions_with_raw_response_returns_raw():
+    http_client = Mock()
+    http_client.require_auth = Mock()
+    http_client.get_hmac_credentials = Mock(return_value=HMAC_CREDS)
+    http_client.post = AsyncMock()
+    http_client.post_raw = AsyncMock(
+        return_value=HttpRawResponse(
+            status=201,
+            headers={"content-type": "application/json"},
+            data={"transactionId": "tx-raw"},
+        )
+    )
+
+    service = ServerWalletService(http_client)
+    response = await service.redeem_positions(
+        condition_id=VALID_CONDITION_ID,
+        on_behalf_of=326,
+        with_raw_response=True,
+    )
+
+    assert isinstance(response, HttpRawResponse)
+    assert response.status == 201
+    assert response.headers["content-type"] == "application/json"
+    assert response.data == {"transactionId": "tx-raw"}
+    http_client.post_raw.assert_awaited_once_with(
+        "/portfolio/redeem",
+        {"conditionId": VALID_CONDITION_ID, "onBehalfOf": 326},
+    )
     http_client.post.assert_not_awaited()
 
 

@@ -1,7 +1,7 @@
 """Market data fetcher for Limitless Exchange."""
 
-from typing import List, Optional, Dict
-from ..api.http_client import HttpClient
+from typing import List, Optional, Dict, Union
+from ..api.http_client import HttpClient, HttpRawResponse
 from ..types.markets import (
     Market,
     MarketsResponse,
@@ -55,8 +55,10 @@ class MarketFetcher:
         self._venue_cache: Dict[str, Venue] = {}  # Cache venues by market slug
 
     async def get_active_markets(
-        self, params: Optional[ActiveMarketsParams] = None
-    ) -> ActiveMarketsResponse:
+        self,
+        params: Optional[ActiveMarketsParams] = None,
+        with_raw_response: bool = False,
+    ) -> Union[ActiveMarketsResponse, HttpRawResponse]:
         """Get active markets with query parameters and pagination support.
 
         Args:
@@ -94,6 +96,11 @@ class MarketFetcher:
         self._logger.debug("Fetching active markets", params.model_dump())
 
         try:
+            if with_raw_response:
+                return await self._http_client.get_raw(
+                    "/markets/active", params=query_params
+                )
+
             response_data = await self._http_client.get(
                 "/markets/active", params=query_params
             )
@@ -116,7 +123,9 @@ class MarketFetcher:
             self._logger.error("Failed to fetch active markets", error, params.model_dump())
             raise
 
-    async def get_market(self, slug: str) -> Market:
+    async def get_market(
+        self, slug: str, with_raw_response: bool = False
+    ) -> Union[Market, HttpRawResponse]:
         """Get a single market by slug.
 
         Automatically caches venue information for efficient order creation.
@@ -150,6 +159,9 @@ class MarketFetcher:
         self._logger.debug("Fetching market", {"slug": slug})
 
         try:
+            if with_raw_response:
+                return await self._http_client.get_raw(f"/markets/{slug}")
+
             response_data = await self._http_client.get(f"/markets/{slug}")
             market = Market(**response_data)
 
@@ -174,7 +186,9 @@ class MarketFetcher:
             self._logger.error("Failed to fetch market", error, {"slug": slug})
             raise
 
-    async def get_orderbook(self, slug: str) -> OrderBook:
+    async def get_orderbook(
+        self, slug: str, with_raw_response: bool = False
+    ) -> Union[OrderBook, HttpRawResponse]:
         """Get the orderbook for a CLOB market.
 
         Args:
@@ -195,6 +209,9 @@ class MarketFetcher:
         self._logger.debug("Fetching orderbook", {"slug": slug})
 
         try:
+            if with_raw_response:
+                return await self._http_client.get_raw(f"/markets/{slug}/orderbook")
+
             response_data = await self._http_client.get(f"/markets/{slug}/orderbook")
             orderbook = OrderBook(**response_data)
 
