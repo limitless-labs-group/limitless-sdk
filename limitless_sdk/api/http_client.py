@@ -350,6 +350,7 @@ class HttpClient:
         path: str,
         data: Optional[Any] = None,
         headers: Optional[Dict[str, str]] = None,
+        accepted_statuses: Optional[Set[int]] = None,
     ) -> Any:
         await self._ensure_session()
 
@@ -378,7 +379,9 @@ class HttpClient:
             except aiohttp.ContentTypeError:
                 response_data = await response.text()
 
-            if response.status >= 400:
+            if response.status >= 400 and (
+                not accepted_statuses or response.status not in accepted_statuses
+            ):
                 raise self._handle_error_response(response.status, response_data, path, "POST")
 
             return response_data

@@ -1,6 +1,6 @@
 """Order client for managing orders on Limitless Exchange."""
 
-from typing import Optional
+from typing import Any, Dict, List, Optional
 from eth_account import Account
 
 from ..api.http_client import HttpClient
@@ -12,6 +12,15 @@ from ..types.orders import (
     OrderResponse,
     OrderSigningConfig,
     UnsignedOrder,
+    CancelReplaceBatchRequest,
+    CancelReplaceBatchResponse,
+    CancelReplaceMode,
+    CancelReplaceOrderRequest,
+    CancelReplaceOrderSubmission,
+    CancelReplaceRequest,
+    CancelReplaceResponse,
+    CancelReplaceTarget,
+    StpPolicy,
 )
 from ..types.user import UserData
 from ..types.logger import ILogger, NoOpLogger
@@ -372,6 +381,159 @@ class OrderClient:
         )
 
         return OrderResponse(**response_data)
+
+    async def _build_signed_create_payload(
+        self,
+        token_id: str,
+        side: Side,
+        order_type: OrderType,
+        market_slug: str,
+        price: Optional[float] = None,
+        size: Optional[float] = None,
+        maker_amount: Optional[float] = None,
+        expiration: Optional[int] = None,
+        taker: Optional[str] = None,
+        post_only: Optional[bool] = None,
+        client_order_id: Optional[str] = None,
+        timestamp: Optional[int] = None,
+        recv_window: Optional[int] = None,
+        stp_policy: Optional[StpPolicy] = None,
+    ) -> CancelReplaceOrderRequest:
+        user_data = await self._ensure_user_data()
+        is_fok = order_type == OrderType.FOK
+        if is_fok:
+            if maker_amount is None:
+                raise ValueError("FOK orders require 'maker_amount' parameter")
+        elif price is None or size is None:
+            raise ValueError(
+                f"{order_type.value} orders require 'price' and 'size' parameters"
+            )
+
+        venue = self._market_fetcher.get_venue(market_slug)
+        if not venue:
+            market = await self._market_fetcher.get_market(market_slug)
+            if not market.venue:
+                raise ValueError(
+                    f"Market {market_slug} does not have venue information. "
+                    "Venue data is required for order signing."
+                )
+            venue = market.venue
+
+        signing_config = OrderSigningConfig(
+            chain_id=self._signing_config.chain_id,
+            contract_address=venue.exchange,
+        )
+        if is_fok:
+            unsigned_order = self._builder.build_fok_order(
+                token_id=token_id,
+                side=side,
+                maker_amount=maker_amount,
+                expiration=expiration,
+                taker=taker,
+            )
+        else:
+            unsigned_order = self._builder.build_order(
+                token_id=token_id,
+                price=price,
+                size=size,
+                side=side,
+                expiration=expiration,
+                taker=taker,
+            )
+        signature = await self._signer.sign_order(unsigned_order, signing_config)
+        submission = CancelReplaceOrderSubmission(
+            **unsigned_order.model_dump(), signature=signature
+        )
+        return CancelReplaceOrderRequest(
+            order=submission,
+            owner_id=user_data.user_id,
+            order_type=order_type.value,
+            market_slug=market_slug,
+            post_only=post_only if order_type == OrderType.GTC else None,
+            client_order_id=client_order_id,
+            timestamp=timestamp,
+            recv_window=recv_window,
+            stp_policy=stp_policy,
+        )
+
+    async def _build_cancel_replace_request(self, **operation: Any) -> CancelReplaceRequest:
+        order_id = operation.pop("order_id", None)
+        client_order_id = operation.pop("client_order_id", None)
+        replacement_client_order_id = operation.pop(
+            "replacement_client_order_id", None
+        )
+        mode = operation.pop("mode", CancelReplaceMode.STOP_ON_FAILURE)
+        replacement = await self._build_signed_create_payload(
+            **operation, client_order_id=replacement_client_order_id
+        )
+        return CancelReplaceRequest(
+            cancel=CancelReplaceTarget(
+                order_id=order_id, client_order_id=client_order_id
+            ),
+            replacement=replacement,
+            mode=mode,
+        )
+
+    async def cancel_replace(
+        self,
+        *,
+        order_id: Optional[str] = None,
+        client_order_id: Optional[str] = None,
+        mode: CancelReplaceMode = CancelReplaceMode.STOP_ON_FAILURE,
+        token_id: str,
+        side: Side,
+        order_type: OrderType,
+        market_slug: str,
+        price: Optional[float] = None,
+        size: Optional[float] = None,
+        maker_amount: Optional[float] = None,
+        expiration: Optional[int] = None,
+        taker: Optional[str] = None,
+        post_only: Optional[bool] = None,
+        replacement_client_order_id: Optional[str] = None,
+        timestamp: Optional[int] = None,
+        recv_window: Optional[int] = None,
+        stp_policy: Optional[StpPolicy] = None,
+    ) -> CancelReplaceResponse:
+        request = await self._build_cancel_replace_request(
+            order_id=order_id,
+            client_order_id=client_order_id,
+            mode=mode,
+            token_id=token_id,
+            side=side,
+            order_type=order_type,
+            market_slug=market_slug,
+            price=price,
+            size=size,
+            maker_amount=maker_amount,
+            expiration=expiration,
+            taker=taker,
+            post_only=post_only,
+            replacement_client_order_id=replacement_client_order_id,
+            timestamp=timestamp,
+            recv_window=recv_window,
+            stp_policy=stp_policy,
+        )
+        response = await self._http_client.post(
+            "/orders/cancel-replace",
+            request.model_dump(by_alias=True, exclude_none=True, mode="json"),
+            accepted_statuses={409},
+        )
+        return CancelReplaceResponse(**response)
+
+    async def cancel_replace_batch(
+        self, operations: List[Dict[str, Any]]
+    ) -> CancelReplaceBatchResponse:
+        requests = [
+            await self._build_cancel_replace_request(**dict(operation))
+            for operation in operations
+        ]
+        payload = CancelReplaceBatchRequest(operations=requests)
+        response = await self._http_client.post(
+            "/orders/cancel-replace/batch",
+            payload.model_dump(by_alias=True, exclude_none=True, mode="json"),
+        )
+        return CancelReplaceBatchResponse(**response)
 
     async def cancel(self, order_id: str) -> dict:
         """Cancel an order by ID.
