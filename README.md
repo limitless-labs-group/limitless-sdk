@@ -627,6 +627,28 @@ await order_client.cancel(order_id)
 await order_client.cancel_all(market_slug)
 ```
 
+### Cancel-Replace Orders
+
+Atomically cancel a resting order and submit its replacement in a single request via `POST /orders/cancel-replace`. Identify the order to cancel with `order_id` or `client_order_id`, and set `mode` to `CancelReplaceMode.STOP_ON_FAILURE` (skip the replacement if the cancel fails) or `CancelReplaceMode.ALLOW_FAILURE`.
+
+```python
+from limitless_sdk import CancelReplaceMode, OrderType, Side
+
+result = await order_client.cancel_replace(
+    order_id="old-order-id",  # or client_order_id="..."
+    mode=CancelReplaceMode.STOP_ON_FAILURE,
+    token_id="123",
+    side=Side.BUY,
+    order_type=OrderType.GTC,
+    market_slug="market-slug",
+    price=0.5,
+    size=2,
+)
+# result.cancel and result.replacement each carry a per-leg status.
+```
+
+Replace many orders at once with `order_client.cancel_replace_batch(operations=[...])`, passing a list of dicts with the same keyword arguments; the response `results` are index-aligned to the input. Partner integrations use `delegated_orders.cancel_replace` / `cancel_replace_batch` (which accept `on_behalf_of`). The single-order variant accepts a `409` conflict as a returned result rather than raising.
+
 ## Partner AMM Trading
 
 `client.partner_amm` trades binary AMM (FPMM) markets on behalf of a server wallet. Approvals are set up **once** per wallet/market pair; buy and sell never preflight allowances. All amounts are positive integer strings in the collateral token's base units (never floats). Authentication uses an HMAC API token (scopes `trading` + `delegated_signing`) or a per-call Privy `identity_token`; legacy API keys are rejected.
