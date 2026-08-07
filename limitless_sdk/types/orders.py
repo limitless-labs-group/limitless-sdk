@@ -4,8 +4,8 @@ from enum import Enum, IntEnum
 from decimal import Decimal, InvalidOperation
 import math
 import re
-from typing import List, Optional, Literal
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from typing import Annotated, List, Optional, Literal, Union
+from pydantic import BaseModel, Field, ConfigDict, field_serializer, field_validator, model_validator
 
 
 _INTEGER_STRING_RE = re.compile(r"^[+-]?\d+$")
@@ -395,6 +395,8 @@ class Execution(BaseModel):
     trade_event_id: Optional[str] = Field(None, alias="tradeEventId")
     tx_hash: Optional[str] = Field(None, alias="txHash")
     client_order_id: Optional[str] = Field(None, alias="clientOrderId")
+    reason: Optional[str] = None
+    stp_maker_cancels: Optional[List[str]] = Field(None, alias="stpMakerCancels")
     eligible_at: Optional[str] = Field(None, alias="eligibleAt")
     fee_rate_bps: int = Field(alias="feeRateBps")
     effective_fee_bps: int = Field(alias="effectiveFeeBps")
@@ -419,3 +421,129 @@ class OrderResponse(BaseModel):
     execution: Optional[Execution] = Field(None, alias="execution")
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+class CancelReplaceMode(str, Enum):
+    STOP_ON_FAILURE = "STOP_ON_FAILURE"
+    ALLOW_FAILURE = "ALLOW_FAILURE"
+
+
+class StpPolicy(str, Enum):
+    CANCEL_BOTH = "cancel_both"
+    CANCEL_MAKER = "cancel_maker"
+    CANCEL_TAKER = "cancel_taker"
+
+
+class CancelReplaceTarget(BaseModel):
+    order_id: Optional[str] = Field(None, alias="orderId")
+    client_order_id: Optional[str] = Field(None, alias="clientOrderId")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    @model_validator(mode="after")
+    def validate_exactly_one_identifier(self):
+        if (self.order_id is None) == (self.client_order_id is None):
+            raise ValueError("exactly one of order_id or client_order_id is required")
+        return self
+
+
+class CancelReplaceOrderSubmission(UnsignedOrder):
+    signature: Optional[str] = None
+
+    @field_serializer("expiration")
+    def serialize_expiration(self, expiration: int) -> str:
+        return str(expiration)
+
+
+class CancelReplaceOrderRequest(BaseModel):
+    order: CancelReplaceOrderSubmission
+    owner_id: int = Field(alias="ownerId")
+    order_type: str = Field(alias="orderType")
+    market_slug: str = Field(alias="marketSlug")
+    post_only: Optional[bool] = Field(None, alias="postOnly")
+    client_order_id: Optional[str] = Field(None, alias="clientOrderId", max_length=128)
+    timestamp: Optional[int] = Field(None, ge=0)
+    recv_window: Optional[int] = Field(None, alias="recvWindow", ge=1, le=10000)
+    stp_policy: Optional[StpPolicy] = Field(None, alias="stpPolicy")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class CancelReplaceRequest(BaseModel):
+    cancel: CancelReplaceTarget
+    replacement: CancelReplaceOrderRequest
+    mode: CancelReplaceMode
+    on_behalf_of: Optional[int] = Field(None, alias="onBehalfOf", ge=1)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class CancelReplaceBatchRequest(BaseModel):
+    operations: List[CancelReplaceRequest] = Field(min_length=1)
+
+
+class CancelReplaceError(BaseModel):
+    code: str
+    message: str
+
+
+class CancelReplaceCancelSuccess(BaseModel):
+    status: Literal["SUCCESS"]
+    order_id: str = Field(alias="orderId")
+    client_order_id: Optional[str] = Field(None, alias="clientOrderId")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class CancelReplaceCancelError(BaseModel):
+    status: Literal["FAILURE", "UNKNOWN"]
+    error: CancelReplaceError
+
+
+CancelReplaceCancelResult = Annotated[
+    Union[CancelReplaceCancelSuccess, CancelReplaceCancelError],
+    Field(discriminator="status"),
+]
+
+
+class CancelReplaceReplacementSuccess(BaseModel):
+    status: Literal["SUCCESS"]
+    data: OrderResponse
+
+    @model_validator(mode="after")
+    def validate_execution(self):
+        if self.data.execution is None:
+            raise ValueError("successful replacement data requires execution")
+        return self
+
+
+class CancelReplaceReplacementError(BaseModel):
+    status: Literal["FAILURE", "UNKNOWN"]
+    error: CancelReplaceError
+
+
+class CancelReplaceReplacementNotAttempted(BaseModel):
+    status: Literal["NOT_ATTEMPTED"]
+
+
+CancelReplaceReplacementResult = Annotated[
+    Union[
+        CancelReplaceReplacementSuccess,
+        CancelReplaceReplacementError,
+        CancelReplaceReplacementNotAttempted,
+    ],
+    Field(discriminator="status"),
+]
+
+
+class CancelReplaceResponse(BaseModel):
+    cancel: CancelReplaceCancelResult
+    replacement: CancelReplaceReplacementResult
+
+
+class CancelReplaceBatchResult(CancelReplaceResponse):
+    index: int = Field(ge=0)
+
+
+class CancelReplaceBatchResponse(BaseModel):
+    results: List[CancelReplaceBatchResult]
