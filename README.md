@@ -627,6 +627,79 @@ await order_client.cancel(order_id)
 await order_client.cancel_all(market_slug)
 ```
 
+### Cancel-Replace Orders
+
+Atomically cancel a resting order and submit its replacement in a single request via `POST /orders/cancel-replace`. Identify the order to cancel with `order_id` or `client_order_id`, and set `mode` to `CancelReplaceMode.STOP_ON_FAILURE` (skip the replacement if the cancel fails) or `CancelReplaceMode.ALLOW_FAILURE`.
+
+```python
+from limitless_sdk import CancelReplaceMode, OrderType, Side
+
+result = await order_client.cancel_replace(
+    order_id="old-order-id",  # or client_order_id="..."
+    mode=CancelReplaceMode.STOP_ON_FAILURE,
+    token_id="123",
+    side=Side.BUY,
+    order_type=OrderType.GTC,
+    market_slug="market-slug",
+    price=0.5,
+    size=2,
+)
+# result.cancel and result.replacement each carry a per-leg status.
+```
+
+Replace many orders at once with `order_client.cancel_replace_batch(operations=[...])`, passing a list of dicts with the same keyword arguments; the response `results` are index-aligned to the input. Partner integrations use `delegated_orders.cancel_replace` / `cancel_replace_batch` (which accept `on_behalf_of`). The single-order variant accepts a `409` conflict as a returned result rather than raising.
+
+## Partner AMM Trading
+
+`client.partner_amm` trades binary AMM (FPMM) markets on behalf of a server wallet. Approvals are set up **once** per wallet/market pair; buy and sell never preflight allowances. All amounts are positive integer strings in the collateral token's base units (never floats). Authentication uses an HMAC API token (scopes `trading` + `delegated_signing`) or a per-call Privy `identity_token`; legacy API keys are rejected.
+
+```python
+from limitless_sdk import Client, AmmAllowanceParams, AmmBuyParams, AmmSellParams
+
+client = Client(hmac_credentials={"token_id": TOKEN_ID, "secret": SECRET})
+
+# 1. One-time approval setup for a wallet/market pair (BUY and SELL are independent).
+#    ensure_allowance checks, approves at most once, then polls check until confirmed.
+await client.partner_amm.ensure_allowance(
+    AmmAllowanceParams(market="market-slug", side="BUY", on_behalf_of=12345)
+)
+await client.partner_amm.ensure_allowance(
+    AmmAllowanceParams(market="market-slug", side="SELL", on_behalf_of=12345)
+)
+
+# 2. Buy: spend an exact collateral amount on outcome 0 (YES).
+buy = await client.partner_amm.buy(
+    AmmBuyParams(
+        market="market-slug",
+        outcome_index=0,               # 0 = YES, 1 = NO
+        collateral_amount="1000000",   # base units, positive integer string
+        slippage_bps=100,              # optional, 0..1000, defaults to 100
+        idempotency_key="buy-unique-key-001",  # required; reuse exact key + body to retry safely
+        on_behalf_of=12345,            # omit for a direct profile
+    )
+)
+print(buy.status, buy.expected_shares, buy.min_shares)
+
+# 3. Sell: request an exact collateral return.
+sell = await client.partner_amm.sell(
+    AmmSellParams(
+        market="market-slug",
+        outcome_index=0,
+        collateral_return_amount="992015",
+        idempotency_key="sell-unique-key-001",
+        on_behalf_of=12345,
+    )
+)
+print(sell.status, sell.expected_shares, sell.max_shares)
+```
+
+**Notes**:
+
+- `ensure_allowance` polls `check_allowance` (default every 2s, up to 30 attempts; tune with `interval` / `max_attempts`). A `202 submitted` approve response is not confirmation.
+- Reuse the same params on a timeout retry — the serialized body and `idempotency_key` stay byte-identical, so the server replays the original submission. Reusing a key with different params raises `ConflictError` (409).
+- Errors map to typed classes: `ValidationError` (400), `AuthenticationError` (401/403), `ConflictError` (409), `UnprocessableEntityError` (422, e.g. insufficient balance/invalid quote), `TooEarlyError` (425, maintenance), `RateLimitError` (429), and `UpstreamUnavailableError` (502/503). The four AMM routes share a limit of 10 requests / 10s per actor.
+- Pass `with_raw_response=True` to any AMM method to get an `HttpRawResponse` exposing the HTTP `status`, `headers`, and original `data`.
+
 ## Portfolio
 
 ### Get Positions

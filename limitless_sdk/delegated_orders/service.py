@@ -1,9 +1,9 @@
 """Delegated-order service."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from urllib.parse import quote
 
-from ..api.http_client import HttpClient
+from ..api.http_client import HttpClient, HttpRawResponse
 from ..orders.builder import OrderBuilder
 from ..types.delegated_orders import (
     CancelResponse,
@@ -51,7 +51,8 @@ class DelegatedOrderService:
         taker: Optional[str] = None,
         fee_rate_bps: Optional[int] = None,
         post_only: Optional[bool] = None,
-    ) -> OrderResponse:
+        with_raw_response: bool = False,
+    ) -> Union[OrderResponse, HttpRawResponse]:
         self._http_client.require_auth("create_delegated_order")
 
         if not isinstance(on_behalf_of, int) or on_behalf_of <= 0:
@@ -113,17 +114,20 @@ class DelegatedOrderService:
             },
         )
 
-        response = await self._http_client.post(
-            "/orders",
-            payload.model_dump(by_alias=True, exclude_none=True),
-        )
+        body = payload.model_dump(by_alias=True, exclude_none=True)
+        if with_raw_response:
+            return await self._http_client.post_raw("/orders", body)
+        response = await self._http_client.post("/orders", body)
         return OrderResponse(**response)
 
-    async def cancel(self, order_id: str) -> str:
+    async def cancel(
+        self, order_id: str, with_raw_response: bool = False
+    ) -> Union[str, HttpRawResponse]:
         self._http_client.require_auth("cancel_delegated_order")
-        response = CancelResponse(
-            **await self._http_client.delete(f"/orders/{quote(order_id, safe='')}")
-        )
+        path = f"/orders/{quote(order_id, safe='')}"
+        if with_raw_response:
+            return await self._http_client.delete_raw(path)
+        response = CancelResponse(**await self._http_client.delete(path))
         return response.message
 
     async def _build_cancel_replace_request(
@@ -199,66 +203,79 @@ class DelegatedOrderService:
             on_behalf_of=on_behalf_of,
         )
 
-    async def cancel_replace(self, **operation: Any) -> CancelReplaceResponse:
+    async def cancel_replace(
+        self, with_raw_response: bool = False, **operation: Any
+    ) -> Union[CancelReplaceResponse, HttpRawResponse]:
         self._http_client.require_auth("cancel_replace_delegated_order")
         request = await self._build_cancel_replace_request(**operation)
+        body = request.model_dump(by_alias=True, exclude_none=True, mode="json")
+        if with_raw_response:
+            return await self._http_client.post_raw(
+                "/orders/cancel-replace", body, accepted_statuses={409}
+            )
         response = await self._http_client.post(
             "/orders/cancel-replace",
-            request.model_dump(by_alias=True, exclude_none=True, mode="json"),
+            body,
             accepted_statuses={409},
         )
         return CancelReplaceResponse(**response)
 
     async def cancel_replace_batch(
-        self, operations: List[Dict[str, Any]]
-    ) -> CancelReplaceBatchResponse:
+        self, operations: List[Dict[str, Any]], with_raw_response: bool = False
+    ) -> Union[CancelReplaceBatchResponse, HttpRawResponse]:
         self._http_client.require_auth("cancel_replace_delegated_order")
         requests = [
             await self._build_cancel_replace_request(**dict(operation))
             for operation in operations
         ]
         payload = CancelReplaceBatchRequest(operations=requests)
-        response = await self._http_client.post(
-            "/orders/cancel-replace/batch",
-            payload.model_dump(by_alias=True, exclude_none=True, mode="json"),
-        )
+        body = payload.model_dump(by_alias=True, exclude_none=True, mode="json")
+        if with_raw_response:
+            return await self._http_client.post_raw("/orders/cancel-replace/batch", body)
+        response = await self._http_client.post("/orders/cancel-replace/batch", body)
         return CancelReplaceBatchResponse(**response)
 
-    async def cancel_on_behalf_of(self, order_id: str, on_behalf_of: int) -> str:
+    async def cancel_on_behalf_of(
+        self, order_id: str, on_behalf_of: int, with_raw_response: bool = False
+    ) -> Union[str, HttpRawResponse]:
         self._http_client.require_auth("cancel_delegated_order")
         if not isinstance(on_behalf_of, int) or on_behalf_of <= 0:
             raise ValueError("on_behalf_of must be a positive integer")
 
+        path = f"/orders/{quote(order_id, safe='')}"
+        params = {"onBehalfOf": on_behalf_of}
+        if with_raw_response:
+            return await self._http_client.delete_raw(path, params=params)
         response = CancelResponse(
-            **await self._http_client.delete(
-                f"/orders/{quote(order_id, safe='')}",
-                params={"onBehalfOf": on_behalf_of},
-            )
+            **await self._http_client.delete(path, params=params)
         )
         return response.message
 
-    async def cancel_all(self, market_slug: str) -> str:
+    async def cancel_all(
+        self, market_slug: str, with_raw_response: bool = False
+    ) -> Union[str, HttpRawResponse]:
         self._http_client.require_auth("cancel_all_delegated_orders")
-        response = CancelResponse(
-            **await self._http_client.delete(
-                f"/orders/all/{quote(market_slug, safe='')}"
-            )
-        )
+        path = f"/orders/all/{quote(market_slug, safe='')}"
+        if with_raw_response:
+            return await self._http_client.delete_raw(path)
+        response = CancelResponse(**await self._http_client.delete(path))
         return response.message
 
     async def cancel_all_on_behalf_of(
         self,
         market_slug: str,
         on_behalf_of: int,
-    ) -> str:
+        with_raw_response: bool = False,
+    ) -> Union[str, HttpRawResponse]:
         self._http_client.require_auth("cancel_all_delegated_orders")
         if not isinstance(on_behalf_of, int) or on_behalf_of <= 0:
             raise ValueError("on_behalf_of must be a positive integer")
 
+        path = f"/orders/all/{quote(market_slug, safe='')}"
+        params = {"onBehalfOf": on_behalf_of}
+        if with_raw_response:
+            return await self._http_client.delete_raw(path, params=params)
         response = CancelResponse(
-            **await self._http_client.delete(
-                f"/orders/all/{quote(market_slug, safe='')}",
-                params={"onBehalfOf": on_behalf_of},
-            )
+            **await self._http_client.delete(path, params=params)
         )
         return response.message

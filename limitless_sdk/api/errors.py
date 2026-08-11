@@ -152,3 +152,56 @@ class ConflictError(APIError):
             method: HTTP method
         """
         super().__init__(message, status_code, response_data, url, method)
+
+
+class UnprocessableEntityError(APIError):
+    """Exception for unprocessable-entity errors (422).
+
+    Raised for insufficient balance, invalid quote, or an amount too small for
+    the requested slippage.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        status_code: int = 422,
+        response_data: Optional[Any] = None,
+        url: Optional[str] = None,
+        method: Optional[str] = None,
+    ):
+        super().__init__(message, status_code, response_data, url, method)
+
+
+class TooEarlyError(APIError):
+    """Exception for too-early errors (425).
+
+    Raised for maintenance windows or trading-mode blocks.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        status_code: int = 425,
+        response_data: Optional[Any] = None,
+        url: Optional[str] = None,
+        method: Optional[str] = None,
+    ):
+        super().__init__(message, status_code, response_data, url, method)
+
+
+class UpstreamUnavailableError(APIError):
+    """Exception for upstream-unavailable errors (502, 503).
+
+    Raised when a Privy submission fails, an on-chain read fails, or a market
+    lookup / redis / rate limiter dependency is unavailable.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        status_code: int = 503,
+        response_data: Optional[Any] = None,
+        url: Optional[str] = None,
+        method: Optional[str] = None,
+    ):
+        super().__init__(message, status_code, response_data, url, method)

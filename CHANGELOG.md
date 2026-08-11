@@ -9,15 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Partner AMM trading** (`client.partner_amm`, `PartnerAmmService`): approve/check market allowances and submit exact-collateral buy/sell orders through server wallets. Methods `check_allowance`, `approve_allowance`, `ensure_allowance` (check → approve-once → poll check), `buy`, and `sell`. Each accepts an optional Privy `identity_token` (falling back to HMAC-scoped API-token auth; legacy API keys are rejected) and a `with_raw_response` flag. Ports the Go SDK's client-side validation (market ≤255 chars, `outcome_index` ∈ {0,1}, positive-integer amount strings ≤ uint256, `slippage_bps` 0..1000, `idempotency_key` ≤128 chars, `on_behalf_of` 1..2147483647 omitted when unset). New request/response models and constants exported from `limitless_sdk` and `limitless_sdk.types`.
+- **Opt-in raw HTTP responses**: every API-backed service method now accepts `with_raw_response: bool = False`; when true it returns an `HttpRawResponse` (`status`, lowercased `headers`, `data`) instead of a parsed model. New transport methods `post_raw`, `delete_raw`, `post_raw_with_identity`, `get_raw_with_identity`, `delete_raw_with_identity`, and `post_raw_with_headers` on `HttpClient`. Raw mode still raises typed errors for status ≥ 400.
+- **New typed errors** wired into error mapping and exported: `UnprocessableEntityError` (422), `TooEarlyError` (425), and `UpstreamUnavailableError` (502/503).
 - WebSocket `orderEvent` now models two additional frames on the existing union members:
   - OME `EXECUTION` (FAK/FOK terminal): `OmeOrderEvent.type` gains `"EXECUTION"`, plus a `status` of `"FILLED" | "PARTIALLY_FILLED" | "KILLED"` (present only on `EXECUTION`). Its `eventId` is the string `"terminal:<orderId>"`.
   - Settlement `MATCHED` (pre-settlement per-fill): `SettlementOrderEvent.type` gains `"MATCHED"`, plus `isEstimate: bool` and `token: "YES" | "NO"`. On `MATCHED` the maker side reports a fee of 0 and the taker reports a real estimate.
+- Atomic cancel-replace for orders via `client.orders.cancel_replace` / `cancel_replace_batch` and `client.delegated_orders.cancel_replace` / `cancel_replace_batch`, backed by `POST /orders/cancel-replace` and `/orders/cancel-replace/batch`. A single request cancels a resting order and submits its replacement atomically; the batch variant does so for many operations at once. New cancel-replace request/response models exported from `limitless_sdk` and `limitless_sdk.types`.
 - The POST /orders response now models the `execution` object (`Execution` / `ExecutionTotalsRaw`), previously dropped. It carries the settlement/fee summary and the taker-delay outcome: `matched`, `settlementStatus` (plain string — known values `UNMATCHED` / `MATCHED` / `MINED` / `CONFIRMED` / `RETRYING` / `FAILED` / `DELAYED`), optional `tradeEventId` / `txHash` / `clientOrderId`, `eligibleAt` (ISO-8601, present only when `settlementStatus == "DELAYED"` — when the order is released to the matching engine), `feeRateBps`, `effectiveFeeBps`, and the raw integer-string `totalsRaw`. Modeled optionally on `OrderResponse` for back-compat. Additive, non-breaking.
 
 ### Changed
 
 - **BREAKING (type-only):** `OmeOrderEvent.price` and `OmeOrderEvent.remainingSize` are now typed `float` instead of `str`, and `OmeOrderEvent.eventId` is now `Union[int, str]` instead of `int`. The runtime values never changed — all OME frames have always emitted `price`/`remainingSize` as JSON numbers and the terminal `eventId` as a string; only the static types are corrected. Consumers that parsed these as strings should drop the conversion.
 - README, examples docs, package metadata, lockfile, and runtime `__version__` now target `v1.1.0`.
+
+### Fixed
+
+- `PriceOracleMetadata.logo` is now optional (`Optional[str] = None`). Some markets omit this cosmetic field, and the previously-required typing failed Pydantic validation of the entire market object in `markets.get_market()` / `get_active_markets()`. Brings Python in line with the Go/TS SDKs, which already tolerated it.
+- `OrderBook.last_trade_price` is now optional (`Optional[float] = None`). The API returns `lastTradePrice: null` for markets with no trades yet; the required typing previously failed validation of the whole book in `markets.get_orderbook()`, so the SDK returned an empty book and callers saw a spurious "no best ask". Verified against the API (`market-orderbook.service.ts`) that only `lastTradePrice` is nullable — the other orderbook fields remain required.
 
 ## [1.0.11]
 

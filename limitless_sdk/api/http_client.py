@@ -14,6 +14,9 @@ from .errors import (
     AuthenticationError,
     ConflictError,
     RateLimitError,
+    TooEarlyError,
+    UnprocessableEntityError,
+    UpstreamUnavailableError,
     ValidationError,
 )
 from .hmac import compute_hmac_signature
@@ -247,8 +250,14 @@ class HttpClient:
             return ValidationError(message, status, data, url, method)
         if status == 409:
             return ConflictError(message, status, data, url, method)
+        if status == 422:
+            return UnprocessableEntityError(message, status, data, url, method)
+        if status == 425:
+            return TooEarlyError(message, status, data, url, method)
         if status == 429:
             return RateLimitError(message, status, data, url, method)
+        if status in (502, 503):
+            return UpstreamUnavailableError(message, status, data, url, method)
         if status in (401, 403):
             return AuthenticationError(message, status, data, url, method)
         return APIError(message, status, data, url, method)
@@ -386,6 +395,49 @@ class HttpClient:
 
             return response_data
 
+    async def post_raw(
+        self,
+        path: str,
+        data: Optional[Any] = None,
+        headers: Optional[Dict[str, str]] = None,
+        accepted_statuses: Optional[Set[int]] = None,
+    ) -> HttpRawResponse:
+        await self._ensure_session()
+
+        url, request_path = self._build_url(path)
+        body = _serialize_json_body(data)
+        request_headers = self._prepare_headers("POST", request_path, body, headers)
+        request_headers["Content-Type"] = "application/json"
+
+        self._logger.debug(
+            f"POST {path} (raw)",
+            {
+                "host": self.base_url,
+                "full_url": url,
+                "has_data": data is not None,
+                "headers": self._sanitize_headers_for_logging(request_headers),
+            },
+        )
+
+        async with self._session.post(
+            url,
+            data=body or None,
+            headers=request_headers,
+        ) as response:
+            try:
+                response_data = await response.json()
+            except aiohttp.ContentTypeError:
+                response_data = await response.text()
+
+            headers_map = {str(k).lower(): str(v) for k, v in response.headers.items()}
+
+            if response.status >= 400 and (
+                not accepted_statuses or response.status not in accepted_statuses
+            ):
+                raise self._handle_error_response(response.status, response_data, path, "POST")
+
+            return HttpRawResponse(status=response.status, headers=headers_map, data=response_data)
+
     async def post_with_identity(
         self,
         path: str,
@@ -399,6 +451,44 @@ class HttpClient:
             data=data,
             headers={"identity": f"Bearer {identity_token}"},
         )
+
+    async def post_raw_with_identity(
+        self,
+        path: str,
+        identity_token: str,
+        data: Optional[Any] = None,
+        accepted_statuses: Optional[Set[int]] = None,
+    ) -> HttpRawResponse:
+        if not identity_token:
+            raise ValueError("identity_token is required")
+        return await self.post_raw(
+            path,
+            data=data,
+            headers={"identity": f"Bearer {identity_token}"},
+            accepted_statuses=accepted_statuses,
+        )
+
+    async def get_raw_with_identity(
+        self,
+        path: str,
+        identity_token: str,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> HttpRawResponse:
+        if not identity_token:
+            raise ValueError("identity_token is required")
+        return await self.get_raw(
+            path,
+            params=params,
+            headers={"identity": f"Bearer {identity_token}"},
+        )
+
+    async def post_raw_with_headers(
+        self,
+        path: str,
+        data: Optional[Any] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> HttpRawResponse:
+        return await self.post_raw(path, data=data, headers=headers)
 
     async def delete_with_identity(
         self,
@@ -493,3 +583,54 @@ class HttpClient:
                 raise self._handle_error_response(response.status, data, path, "DELETE")
 
             return data
+
+    async def delete_raw(
+        self,
+        path: str,
+        params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> HttpRawResponse:
+        await self._ensure_session()
+
+        url, request_path = self._build_url(path, params)
+        request_headers = self._prepare_headers("DELETE", request_path, "", headers)
+
+        self._logger.debug(
+            f"DELETE {path} (raw)",
+            {
+                "host": self.base_url,
+                "full_url": url,
+                "headers": self._sanitize_headers_for_logging(request_headers),
+            },
+        )
+
+        async with self._session.delete(
+            url,
+            headers=request_headers,
+            skip_auto_headers=["Content-Type"],
+        ) as response:
+            try:
+                data = await response.json()
+            except aiohttp.ContentTypeError:
+                data = await response.text()
+
+            headers_map = {str(k).lower(): str(v) for k, v in response.headers.items()}
+
+            if response.status >= 400:
+                raise self._handle_error_response(response.status, data, path, "DELETE")
+
+            return HttpRawResponse(status=response.status, headers=headers_map, data=data)
+
+    async def delete_raw_with_identity(
+        self,
+        path: str,
+        identity_token: str,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> HttpRawResponse:
+        if not identity_token:
+            raise ValueError("identity_token is required")
+        return await self.delete_raw(
+            path,
+            params=params,
+            headers={"identity": f"Bearer {identity_token}"},
+        )

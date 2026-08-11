@@ -23,6 +23,9 @@ from .api import (
     AuthenticationError,
     ValidationError,
     ConflictError,
+    UnprocessableEntityError,
+    TooEarlyError,
+    UpstreamUnavailableError,
     retry_on_errors,
     RetryConfig,
     RetryableClient,
@@ -40,6 +43,7 @@ from .api_tokens import ApiTokenService
 from .partner_accounts import PartnerAccountService
 from .delegated_orders import DelegatedOrderService
 from .server_wallets import ServerWalletService
+from .partner_amm import PartnerAmmService
 
 # Orders module
 from .orders import (
@@ -180,6 +184,22 @@ from .types import (
     ServerWalletTransactionEnvelope,
     RedeemServerWalletResponse,
     WithdrawServerWalletResponse,
+    # Partner AMM types
+    AMM_SIDE_BUY,
+    AMM_SIDE_SELL,
+    AMM_ALLOWANCE_STATUS_MISSING,
+    AMM_ALLOWANCE_STATUS_SUBMITTED,
+    AMM_ALLOWANCE_STATUS_CONFIRMED,
+    AMM_TRADE_STATUS_SUBMITTED,
+    AMM_OUTCOME_YES,
+    AMM_OUTCOME_NO,
+    AmmAllowanceParams,
+    AmmBuyParams,
+    AmmSellParams,
+    AmmTransactionIdentifiers,
+    AmmAllowanceResponse,
+    AmmBuyResponse,
+    AmmSellResponse,
     # Portfolio types
     Position,
     HistoryEntry,
@@ -228,6 +248,9 @@ __all__ = [
     "AuthenticationError",
     "ValidationError",
     "ConflictError",
+    "UnprocessableEntityError",
+    "TooEarlyError",
+    "UpstreamUnavailableError",
     "retry_on_errors",
     "RetryConfig",
     "RetryableClient",
@@ -243,6 +266,7 @@ __all__ = [
     "PartnerAccountService",
     "DelegatedOrderService",
     "ServerWalletService",
+    "PartnerAmmService",
     # Orders module
     "OrderBuilder",
     "OrderSigner",
@@ -371,6 +395,22 @@ __all__ = [
     "ServerWalletTransactionEnvelope",
     "RedeemServerWalletResponse",
     "WithdrawServerWalletResponse",
+    # Partner AMM types
+    "AMM_SIDE_BUY",
+    "AMM_SIDE_SELL",
+    "AMM_ALLOWANCE_STATUS_MISSING",
+    "AMM_ALLOWANCE_STATUS_SUBMITTED",
+    "AMM_ALLOWANCE_STATUS_CONFIRMED",
+    "AMM_TRADE_STATUS_SUBMITTED",
+    "AMM_OUTCOME_YES",
+    "AMM_OUTCOME_NO",
+    "AmmAllowanceParams",
+    "AmmBuyParams",
+    "AmmSellParams",
+    "AmmTransactionIdentifiers",
+    "AmmAllowanceResponse",
+    "AmmBuyResponse",
+    "AmmSellResponse",
     # Portfolio types
     "Position",
     "HistoryEntry",

@@ -33,9 +33,30 @@ class _MockResponseContext:
 class _MockSession:
     def __init__(self, response):
         self._response = response
+        self.calls = []
 
     def get(self, *args, **kwargs):
+        self.calls.append(("get", args, kwargs))
         return _MockResponseContext(self._response)
+
+    def post(self, *args, **kwargs):
+        self.calls.append(("post", args, kwargs))
+        return _MockResponseContext(self._response)
+
+    def delete(self, *args, **kwargs):
+        self.calls.append(("delete", args, kwargs))
+        return _MockResponseContext(self._response)
+
+
+def _install_session(client, response):
+    session = _MockSession(response)
+    client._session = session
+
+    async def _noop_ensure():
+        return None
+
+    client._ensure_session = _noop_ensure
+    return session
 
 
 
@@ -103,4 +124,78 @@ async def test_get_raw_allows_accepted_non_error_status():
 
     assert response.status == 301
     assert response.headers.get("location") == "/crypto"
+
+
+@pytest.mark.asyncio
+async def test_post_raw_returns_raw_response_with_lowercased_headers():
+    client = HttpClient(base_url="https://api.limitless.exchange", api_key="test-key")
+    session = _install_session(
+        client,
+        _MockResponse(
+            status=201,
+            data={"status": "SUBMITTED"},
+            headers={"Content-Type": "application/json", "X-Trace": "abc"},
+        ),
+    )
+
+    response = await client.post_raw("/amm/buy", {"market": "m"})
+
+    assert response.status == 201
+    assert response.data == {"status": "SUBMITTED"}
+    assert response.headers.get("content-type") == "application/json"
+    assert response.headers.get("x-trace") == "abc"
+    assert session.calls[0][0] == "post"
+
+
+@pytest.mark.asyncio
+async def test_post_raw_raises_typed_error_on_http_error():
+    client = HttpClient(base_url="https://api.limitless.exchange", api_key="test-key")
+    _install_session(client, _MockResponse(status=422, data={"message": "too small"}))
+
+    from limitless_sdk.api.errors import UnprocessableEntityError
+
+    with pytest.raises(UnprocessableEntityError) as exc:
+        await client.post_raw("/amm/buy", {"market": "m"})
+
+    assert exc.value.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_post_raw_whitelists_accepted_error_status():
+    client = HttpClient(base_url="https://api.limitless.exchange", api_key="test-key")
+    _install_session(client, _MockResponse(status=409, data={"message": "conflict"}))
+
+    response = await client.post_raw(
+        "/orders/cancel-replace", {"cancel": {}}, accepted_statuses={409}
+    )
+
+    assert response.status == 409
+    assert response.data == {"message": "conflict"}
+
+
+@pytest.mark.asyncio
+async def test_delete_raw_returns_raw_response():
+    client = HttpClient(base_url="https://api.limitless.exchange", api_key="test-key")
+    session = _install_session(
+        client,
+        _MockResponse(status=200, data={"message": "ok"}, headers={"X-Trace": "z"}),
+    )
+
+    response = await client.delete_raw("/orders/order-1")
+
+    assert response.status == 200
+    assert response.data == {"message": "ok"}
+    assert response.headers.get("x-trace") == "z"
+    assert session.calls[0][0] == "delete"
+
+
+@pytest.mark.asyncio
+async def test_delete_raw_raises_typed_error_on_http_error():
+    client = HttpClient(base_url="https://api.limitless.exchange", api_key="test-key")
+    _install_session(client, _MockResponse(status=404, data={"message": "not found"}))
+
+    with pytest.raises(APIError) as exc:
+        await client.delete_raw("/orders/missing")
+
+    assert exc.value.status_code == 404
 

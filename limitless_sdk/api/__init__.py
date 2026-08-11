@@ -7,6 +7,9 @@ from .errors import (
     AuthenticationError,
     ValidationError,
     ConflictError,
+    UnprocessableEntityError,
+    TooEarlyError,
+    UpstreamUnavailableError,
 )
 from .retry import (
     retry_on_errors,
@@ -22,6 +25,9 @@ __all__ = [
     "AuthenticationError",
     "ValidationError",
     "ConflictError",
+    "UnprocessableEntityError",
+    "TooEarlyError",
+    "UpstreamUnavailableError",
     "retry_on_errors",
     "RetryConfig",
     "RetryableClient",

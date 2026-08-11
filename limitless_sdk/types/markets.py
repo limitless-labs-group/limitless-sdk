@@ -100,7 +100,7 @@ class PriceOracleMetadata(BaseModel):
         pyth_address: Pyth Network price feed address
         symbol: Price feed symbol
         name: Asset name
-        logo: Logo URL
+        logo: Logo URL (optional; omitted by some markets)
     """
 
     ticker: str
@@ -108,7 +108,7 @@ class PriceOracleMetadata(BaseModel):
     pyth_address: str = Field(alias="pythAddress")
     symbol: str
     name: str
-    logo: str
+    logo: Optional[str] = None
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -139,7 +139,7 @@ class OrderBook(BaseModel):
         adjusted_midpoint: Adjusted midpoint price between best bid and ask
         max_spread: Maximum allowed spread for the market
         min_size: Minimum order size allowed
-        last_trade_price: Last trade price for the market
+        last_trade_price: Last trade price (None until the market's first trade)
     """
 
     bids: List[OrderbookEntry]
@@ -148,7 +148,7 @@ class OrderBook(BaseModel):
     adjusted_midpoint: float = Field(alias="adjustedMidpoint")
     max_spread: str = Field(alias="maxSpread")
     min_size: str = Field(alias="minSize")
-    last_trade_price: float = Field(alias="lastTradePrice")
+    last_trade_price: Optional[float] = Field(None, alias="lastTradePrice")
 
     model_config = ConfigDict(populate_by_name=True)
 

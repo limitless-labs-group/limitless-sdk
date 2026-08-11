@@ -11,6 +11,7 @@ from .market_pages import MarketPageFetcher
 from .markets import MarketFetcher
 from .orders import OrderClient
 from .partner_accounts import PartnerAccountService
+from .partner_amm import PartnerAmmService
 from .portfolio import PortfolioFetcher
 from .server_wallets import ServerWalletService
 from .types.api_tokens import HMACCredentials
@@ -48,6 +49,7 @@ class Client:
         self.partner_accounts = PartnerAccountService(self.http, shared_logger)
         self.delegated_orders = DelegatedOrderService(self.http, shared_logger)
         self.server_wallets = ServerWalletService(self.http, shared_logger)
+        self.partner_amm = PartnerAmmService(self.http, shared_logger)
 
     async def __aenter__(self):
         await self.http.__aenter__()
@@ -71,6 +73,7 @@ class Client:
         client.partner_accounts = PartnerAccountService(http_client, shared_logger)
         client.delegated_orders = DelegatedOrderService(http_client, shared_logger)
         client.server_wallets = ServerWalletService(http_client, shared_logger)
+        client.partner_amm = PartnerAmmService(http_client, shared_logger)
         return client
 
     def new_order_client(self, wallet_or_private_key: Union[str, object]) -> OrderClient:
