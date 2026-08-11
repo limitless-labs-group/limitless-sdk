@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING (type-only):** `OmeOrderEvent.price` and `OmeOrderEvent.remainingSize` are now typed `float` instead of `str`, and `OmeOrderEvent.eventId` is now `Union[int, str]` instead of `int`. The runtime values never changed — all OME frames have always emitted `price`/`remainingSize` as JSON numbers and the terminal `eventId` as a string; only the static types are corrected. Consumers that parsed these as strings should drop the conversion.
 - README, examples docs, package metadata, lockfile, and runtime `__version__` now target `v1.1.0`.
 
+### Fixed
+
+- `PriceOracleMetadata.logo` is now optional (`Optional[str] = None`). Some markets omit this cosmetic field, and the previously-required typing failed Pydantic validation of the entire market object in `markets.get_market()` / `get_active_markets()`. Brings Python in line with the Go/TS SDKs, which already tolerated it.
+- `OrderBook.last_trade_price` is now optional (`Optional[float] = None`). The API returns `lastTradePrice: null` for markets with no trades yet; the required typing previously failed validation of the whole book in `markets.get_orderbook()`, so the SDK returned an empty book and callers saw a spurious "no best ask". Verified against the API (`market-orderbook.service.ts`) that only `lastTradePrice` is nullable — the other orderbook fields remain required.
+
 ## [1.0.11]
 
 ### Added
