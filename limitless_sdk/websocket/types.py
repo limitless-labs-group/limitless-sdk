@@ -118,7 +118,8 @@ class OrderbookData(TypedDict):
         bids: List of bid orders sorted by price descending
         asks: List of ask orders sorted by price ascending
         tokenId: Token ID for the orderbook
-        adjustedMidpoint: Adjusted midpoint price
+        adjustedMidpoint: Adjusted midpoint price (levels below minSize dropped)
+        midpoint: Midpoint of the best displayed bid and ask, without the minSize filter
         maxSpread: Maximum spread allowed
         minSize: Minimum order size
     """
@@ -126,6 +127,7 @@ class OrderbookData(TypedDict):
     asks: List[OrderbookEntry]
     tokenId: str
     adjustedMidpoint: float
+    midpoint: float
     maxSpread: float
     minSize: float
 
@@ -136,10 +138,14 @@ class OrderbookUpdate(TypedDict):
     Attributes:
         marketSlug: Market slug identifier (camelCase to match API)
         orderbook: Nested orderbook data object
+        version: Publisher sequence for the book. Increases with every frame while the
+            same publisher is active and can restart after a backend failover. The initial
+            snapshot sent after subscribing carries 0 when it came from the database fallback.
         timestamp: Timestamp as Date string or number
     """
     marketSlug: str
     orderbook: OrderbookData
+    version: int
     timestamp: Union[str, int, Any]  # API sends Date, can be string or number after serialization
 
 

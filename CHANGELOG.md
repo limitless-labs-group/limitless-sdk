@@ -5,6 +5,12 @@ All notable changes to the Limitless Exchange Python SDK will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `version` on `OrderbookUpdate` and `midpoint` on `OrderbookData`, matching the `orderbookUpdate` wire frame. `version` is the publisher sequence for the book (`0` when the initial snapshot came from the database fallback); use it to drop an out-of-order frame right after subscribing. `midpoint` is the midpoint of the best displayed bid and ask without the `minSize` filter that `adjustedMidpoint` applies.
+
 ## [1.1.0]
 
 ### Added
