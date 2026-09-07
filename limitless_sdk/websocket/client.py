@@ -230,28 +230,10 @@ class WebSocketClient:
                 # Prepare connection URL (use base URL, namespace handled by Socket.IO)
                 ws_url = self._config.url
 
-                headers = _build_sdk_tracking_headers()
-                if self._config.hmac_credentials:
-                    timestamp = _build_iso_timestamp()
-                    headers.update({
-                        "lmts-api-key": self._config.hmac_credentials.token_id,
-                        "lmts-timestamp": timestamp,
-                        "lmts-signature": compute_hmac_signature(
-                            self._config.hmac_credentials.secret,
-                            timestamp,
-                            "GET",
-                            "/socket.io/?transport=websocket&EIO=4",
-                            "",
-                        ),
-                    })
-                elif self._config.api_key:
-                    headers['X-API-Key'] = self._config.api_key
-
-                # Connect with timeout to /markets namespace
                 await asyncio.wait_for(
                     self._sio.connect(
                         ws_url,
-                        headers=headers,
+                        headers=self._build_connection_headers,
                         transports=['websocket'],  # WebSocket only (no polling fallback)
                         namespaces=[DEFAULT_NAMESPACE],  # Connect to /markets namespace
                         wait_timeout=self._config.timeout
@@ -539,6 +521,30 @@ class WebSocketClient:
             self._sio.off(event, handler=handler, namespace=DEFAULT_NAMESPACE)
 
         return self
+
+    def _build_connection_headers(self) -> Dict[str, str]:
+        """Build the headers for one connection attempt.
+
+        Returns:
+            The connection headers.
+        """
+        headers = _build_sdk_tracking_headers()
+        if self._config.hmac_credentials:
+            timestamp = _build_iso_timestamp()
+            headers.update({
+                "lmts-api-key": self._config.hmac_credentials.token_id,
+                "lmts-timestamp": timestamp,
+                "lmts-signature": compute_hmac_signature(
+                    self._config.hmac_credentials.secret,
+                    timestamp,
+                    "GET",
+                    "/socket.io/?transport=websocket&EIO=4",
+                    "",
+                ),
+            })
+        elif self._config.api_key:
+            headers['X-API-Key'] = self._config.api_key
+        return headers
 
     def _attach_pending_listeners(self) -> None:
         """Attach any pending event listeners that were added before connect().
