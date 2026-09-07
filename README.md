@@ -730,6 +730,8 @@ print(f"Points: {positions['accumulativePoints']}")
 
 Subscribe to backend-supported websocket events only. Public subscriptions include `subscribe_market_prices`, `subscribe_live_sports`, `subscribe_live_esports`, and `subscribe_market_lifecycle`; authenticated subscriptions include `subscribe_positions`, `subscribe_transactions`, and `subscribe_order_events`.
 
+Connection headers (SDK tracking, `X-API-Key`, or the HMAC `lmts-*` set) are rebuilt before every connection attempt, so HMAC signatures stay within the server's timestamp window across automatic reconnects.
+
 ```python
 from limitless_sdk.websocket import WebSocketClient, WebSocketConfig
 

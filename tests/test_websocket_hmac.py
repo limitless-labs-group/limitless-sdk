@@ -26,10 +26,12 @@ class _FakeAsyncClient:
         return decorator
 
     async def connect(self, url, headers=None, transports=None, namespaces=None, wait_timeout=None):
+        self.connection_headers = headers
+        resolved = headers() if callable(headers) else headers
         self.connect_calls.append(
             {
                 "url": url,
-                "headers": headers or {},
+                "headers": resolved or {},
                 "transports": transports,
                 "namespaces": namespaces,
                 "wait_timeout": wait_timeout,
@@ -105,6 +107,75 @@ async def test_websocket_connect_uses_hmac_headers(monkeypatch):
     assert headers["lmts-api-key"] == "token-123"
     assert headers["lmts-signature"] == "signature-123"
     assert "X-API-Key" not in headers
+    assert fake_client.connection_headers == client._build_connection_headers
+
+
+@pytest.mark.asyncio
+async def test_real_socketio_reconnect_loop_reinvokes_header_callable(monkeypatch):
+    import engineio
+    import socketio
+
+    counter = iter(range(1, 100))
+    monkeypatch.setattr(
+        "limitless_sdk.websocket.client._build_iso_timestamp",
+        lambda: f"2026-03-30T12:{next(counter):02d}:00.000Z",
+    )
+
+    client = WebSocketClient(
+        WebSocketConfig(
+            hmac_credentials=HMACCredentials(token_id="token-123", secret="c2VjcmV0"),
+        )
+    )
+
+    sio = socketio.AsyncClient(
+        reconnection=True,
+        reconnection_delay=0.01,
+        reconnection_delay_max=0.02,
+        reconnection_attempts=3,
+        randomization_factor=0,
+    )
+    attempts = []
+
+    async def failing_eio_connect(url, headers=None, **kwargs):
+        attempts.append(dict(headers or {}))
+        raise engineio.exceptions.ConnectionError("refused")
+
+    monkeypatch.setattr(sio.eio, "connect", failing_eio_connect)
+
+    with pytest.raises(socketio.exceptions.ConnectionError):
+        await sio.connect(
+            "wss://example.invalid",
+            headers=client._build_connection_headers,
+            transports=["websocket"],
+            namespaces=["/markets"],
+            retry=True,
+        )
+
+    assert len(attempts) == 4
+    timestamps = [a["lmts-timestamp"] for a in attempts]
+    signatures = [a["lmts-signature"] for a in attempts]
+    assert len(set(timestamps)) == 4
+    assert len(set(signatures)) == 4
+    assert all(a["lmts-api-key"] == "token-123" for a in attempts)
+
+
+@pytest.mark.asyncio
+async def test_websocket_connect_uses_api_key_header_via_callable(monkeypatch):
+    fake_client = _FakeAsyncClient()
+    monkeypatch.setattr(
+        "limitless_sdk.websocket.client.AsyncClient",
+        lambda *args, **kwargs: fake_client,
+    )
+
+    client = WebSocketClient(
+        WebSocketConfig(api_key="api-key-123", auto_reconnect=False)
+    )
+
+    await client.connect()
+
+    headers = fake_client.connect_calls[0]["headers"]
+    assert headers["X-API-Key"] == "api-key-123"
+    assert "lmts-signature" not in headers
 
 
 @pytest.mark.asyncio
