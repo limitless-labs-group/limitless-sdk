@@ -226,7 +226,7 @@ async def test_markets_reconnect_restores_subscriptions():
     fake_client = _FakeAsyncClient()
     client._sio = fake_client
     client._subscriptions = {
-        "subscribe_order_events:global": {},
+        "subscribe_order_events": {},
     }
     client._state = WebSocketState.CONNECTED
 

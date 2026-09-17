@@ -730,6 +730,11 @@ print(f"Points: {positions['accumulativePoints']}")
 
 Subscribe to backend-supported websocket events only. Public subscriptions include `subscribe_market_prices`, `subscribe_live_sports`, `subscribe_live_esports`, and `subscribe_market_lifecycle`; authenticated subscriptions include `subscribe_positions`, `subscribe_transactions`, and `subscribe_order_events`.
 
+Each `subscribe_market_prices` or `subscribe_positions` call replaces that
+channel's previous market selection. To follow multiple markets, include them
+in one payload, such as `{'marketSlugs': ['market-a', 'market-b']}`. Automatic
+reconnects restore only the latest payload per channel.
+
 ```python
 from limitless_sdk.websocket import WebSocketClient, WebSocketConfig
 
@@ -1035,7 +1040,7 @@ points = positions['accumulativePoints']
 
 - Restore subscriptions and refresh HMAC authentication on automatic WebSocket reconnects.
 - Keep SDK lifecycle handling active when user connection callbacks are registered or removed.
-- Preserve separately added market subscriptions so every subscribed market is restored after reconnect.
+- Replay only the latest subscription payload per channel, matching the backend's market-selection replacement behavior.
 
 See [CHANGELOG.md](CHANGELOG.md#111) for details.
 

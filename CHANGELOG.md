@@ -9,10 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Restore saved WebSocket subscriptions when the `/markets` namespace reconnects, and update SDK state on namespace disconnects and connection errors.
+- Restore the latest saved subscription payload per channel when the `/markets` namespace reconnects, matching the gateway's replacement behavior. Saved options are copied to prevent caller mutations from changing replay data. Update SDK state on namespace disconnects and connection errors.
 - Regenerate HMAC timestamps and signatures for every WebSocket connection attempt, including automatic reconnects.
 - Preserve internal lifecycle handling when users register or remove `connect`, `disconnect`, or `connect_error` callbacks. User callbacks run after internal handling, and callback exceptions are logged without interrupting recovery.
-- Preserve separate market subscriptions across reconnects by keying saved subscriptions on their full options, including `marketSlugs`, `marketAddresses`, and filters. Equivalent market-list orderings deduplicate, and saved options are copied to prevent caller mutations from changing replay data.
+- Preserve the previous saved subscription if sending its replacement fails, without overwriting a newer subscription that completed in the meantime.
 
 ## [1.1.0]
 

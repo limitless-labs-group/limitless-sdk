@@ -13,7 +13,6 @@ Performance optimizations:
 
 import asyncio
 import inspect
-import json
 from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -139,7 +138,7 @@ class WebSocketClient:
         self._state = WebSocketState.DISCONNECTED
 
         # Subscription management (O(1) lookup)
-        self._subscriptions: Dict[str, SubscriptionOptions] = {}
+        self._subscriptions: Dict[SubscriptionChannel, SubscriptionOptions] = {}
 
         # Pending listeners (registered before connect)
         self._pending_listeners: List[Dict[str, Any]] = []
@@ -360,6 +359,9 @@ class WebSocketClient:
     ) -> None:
         """Subscribe to a channel.
 
+        A new subscription replaces the saved options for that channel. For
+        market prices and positions, pass all desired markets in one call.
+
         Args:
             channel: Channel to subscribe to
             options: Subscription options (market slug, filters, etc.)
@@ -405,8 +407,8 @@ class WebSocketClient:
 
         # Keep replay data stable if the caller later reuses or mutates options.
         options = deepcopy(options)
-        subscription_key = self._get_subscription_key(channel, options)
-        self._subscriptions[subscription_key] = options
+        previous_options = self._subscriptions.get(channel)
+        self._subscriptions[channel] = options
 
         self._logger.info("Subscribing to channel", {"channel": channel, "options": options})
 
@@ -420,7 +422,12 @@ class WebSocketClient:
             self._logger.info("Subscription request sent", {"channel": channel, "options": options})
 
         except Exception as e:
-            self._subscriptions.pop(subscription_key, None)
+            # A later subscription or disconnect may already have replaced this entry.
+            if self._subscriptions.get(channel) is options:
+                if previous_options is None:
+                    self._subscriptions.pop(channel, None)
+                else:
+                    self._subscriptions[channel] = previous_options
             self._logger.error("Subscription error", e, {"channel": channel})
             raise
 
@@ -450,8 +457,7 @@ class WebSocketClient:
         if options is None:
             options = {}
 
-        subscription_key = self._get_subscription_key(channel, options)
-        self._subscriptions.pop(subscription_key, None)
+        self._subscriptions.pop(channel, None)
 
         self._logger.info("Unsubscribing from channel", {"channel": channel, "options": options})
 
@@ -663,8 +669,7 @@ class WebSocketClient:
 
         self._logger.info("Re-subscribing to channels", {"count": len(self._subscriptions)})
 
-        for subscription_key, options in list(self._subscriptions.items()):
-            channel = self._get_channel_from_key(subscription_key)
+        for channel, options in list(self._subscriptions.items()):
             try:
                 # just re-sub here
                 await self._sio.emit(
@@ -677,28 +682,6 @@ class WebSocketClient:
             except Exception as e:
                 self._logger.error("Failed to re-subscribe", e, {"channel": channel, "options": options})
 
-    def _get_subscription_key(self, channel: SubscriptionChannel, options: SubscriptionOptions) -> str:
-        """Create a unique subscription key.
-
-        Internal method for O(1) subscription lookup.
-
-        Args:
-            channel: Channel name
-            options: Subscription options
-
-        Returns:
-            Unique subscription key
-        """
-        # Include all selectors and filters; marketSlug alone collapses modern
-        # marketSlugs/marketAddresses subscriptions into the same global entry.
-        normalized = dict(options)
-        for field in ('marketSlugs', 'marketAddresses'):
-            values = normalized.get(field)
-            if values is not None:
-                normalized[field] = sorted(set(values))
-        serialized = json.dumps(normalized, sort_keys=True, separators=(',', ':'))
-        return f"{channel}:{serialized}"
-
     def _validate_subscription_channel(self, channel: SubscriptionChannel) -> None:
         """Validate websocket subscription channel against backend-supported events."""
         if channel not in SUPPORTED_SUBSCRIPTION_CHANNELS:
@@ -706,19 +689,6 @@ class WebSocketClient:
                 f"Unsupported websocket subscription channel '{channel}'. "
                 "Use a supported websocket channel constant."
             )
-
-    def _get_channel_from_key(self, key: str) -> SubscriptionChannel:
-        """Extract channel from subscription key.
-
-        Internal method for extracting channel name from subscription key.
-
-        Args:
-            key: Subscription key
-
-        Returns:
-            Channel name
-        """
-        return key.split(':')[0]  # type: ignore
 
     async def __aenter__(self):
         """Context manager entry."""
