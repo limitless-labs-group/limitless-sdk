@@ -4,6 +4,7 @@ import pytest
 
 from limitless_sdk.types import HMACCredentials
 from limitless_sdk.websocket import WebSocketClient
+from limitless_sdk.websocket.client import DEFAULT_NAMESPACE, _FreshHeadersAsyncClient
 from limitless_sdk.websocket.types import WebSocketConfig, WebSocketState
 
 
@@ -12,7 +13,9 @@ class _FakeAsyncClient:
         self.closed = False
         self.connected = True
         self.connect_calls = []
+        self.emit_calls = []
         self.handlers = {}
+        self.headers_factory = None
 
     def on(self, event, handler=None, namespace=None):
         if handler is not None:
@@ -26,6 +29,8 @@ class _FakeAsyncClient:
         return decorator
 
     async def connect(self, url, headers=None, transports=None, namespaces=None, wait_timeout=None):
+        if self.headers_factory is not None:
+            headers = self.headers_factory()
         self.connect_calls.append(
             {
                 "url": url,
@@ -40,6 +45,7 @@ class _FakeAsyncClient:
         self.closed = True
 
     async def emit(self, *args, **kwargs):
+        self.emit_calls.append({"args": args, "kwargs": kwargs})
         return None
 
 
@@ -49,8 +55,9 @@ async def test_websocket_connect_uses_hmac_headers(monkeypatch):
     client_kwargs = {}
     signature_calls = []
 
-    def fake_async_client(*args, **kwargs):
+    def fake_async_client(headers_factory, *args, **kwargs):
         client_kwargs.update(kwargs)
+        fake_client.headers_factory = headers_factory
         return fake_client
 
     def fake_compute_hmac_signature(secret, timestamp, method, path, body):
@@ -65,7 +72,7 @@ async def test_websocket_connect_uses_hmac_headers(monkeypatch):
         )
         return "signature-123"
 
-    monkeypatch.setattr("limitless_sdk.websocket.client.AsyncClient", fake_async_client)
+    monkeypatch.setattr("limitless_sdk.websocket.client._FreshHeadersAsyncClient", fake_async_client)
     monkeypatch.setattr(
         "limitless_sdk.websocket.client.compute_hmac_signature",
         fake_compute_hmac_signature,
@@ -111,9 +118,13 @@ async def test_websocket_connect_uses_hmac_headers(monkeypatch):
 async def test_websocket_connect_uses_sdk_tracking_headers_without_auth(monkeypatch):
     fake_client = _FakeAsyncClient()
 
+    def fake_async_client(headers_factory, *args, **kwargs):
+        fake_client.headers_factory = headers_factory
+        return fake_client
+
     monkeypatch.setattr(
-        "limitless_sdk.websocket.client.AsyncClient",
-        lambda *args, **kwargs: fake_client,
+        "limitless_sdk.websocket.client._FreshHeadersAsyncClient",
+        fake_async_client,
     )
 
     client = WebSocketClient(
@@ -157,3 +168,84 @@ async def test_websocket_subscription_rejects_unsupported_channel():
 
     with pytest.raises(ValueError, match="Unsupported websocket subscription channel 'trades'"):
         await client.subscribe("trades")  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_hmac_headers_are_regenerated_for_every_connection_attempt(monkeypatch):
+    timestamps = iter([
+        "2026-09-14T09:15:00.000Z",
+        "2026-09-14T09:16:00.000Z",
+    ])
+    connection_headers = []
+
+    async def fake_connect(self, url, **kwargs):
+        connection_headers.append(kwargs["headers"])
+
+    monkeypatch.setattr(
+        "limitless_sdk.websocket.client._build_iso_timestamp",
+        lambda: next(timestamps),
+    )
+    monkeypatch.setattr(
+        "limitless_sdk.websocket.client.compute_hmac_signature",
+        lambda secret, timestamp, method, path, body: f"signature:{timestamp}",
+    )
+    monkeypatch.setattr(
+        "limitless_sdk.websocket.client.AsyncClient.connect",
+        fake_connect,
+    )
+
+    client = WebSocketClient(
+        WebSocketConfig(
+            hmac_credentials=HMACCredentials(
+                token_id="token-123",
+                secret="c2VjcmV0",
+            ),
+        )
+    )
+    socket = _FreshHeadersAsyncClient(client._build_connection_headers)
+
+    await socket.connect("wss://ws.limitless.exchange")
+    await socket.connect(
+        "wss://ws.limitless.exchange",
+        headers={"lmts-timestamp": "stale"},
+    )
+
+    assert [headers["lmts-timestamp"] for headers in connection_headers] == [
+        "2026-09-14T09:15:00.000Z",
+        "2026-09-14T09:16:00.000Z",
+    ]
+    assert [headers["lmts-signature"] for headers in connection_headers] == [
+        "signature:2026-09-14T09:15:00.000Z",
+        "signature:2026-09-14T09:16:00.000Z",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_markets_reconnect_restores_subscriptions():
+    client = WebSocketClient(WebSocketConfig(api_key="api-key"))
+    fake_client = _FakeAsyncClient()
+    client._sio = fake_client
+    client._subscriptions = {
+        "subscribe_order_events": {},
+    }
+    client._state = WebSocketState.CONNECTED
+
+    client._setup_internal_handlers()
+
+    assert (DEFAULT_NAMESPACE, "connect") in fake_client.handlers
+    assert (DEFAULT_NAMESPACE, "disconnect") in fake_client.handlers
+    assert (DEFAULT_NAMESPACE, "connect_error") in fake_client.handlers
+    assert (None, "reconnect") not in fake_client.handlers
+
+    await fake_client.handlers[(DEFAULT_NAMESPACE, "disconnect")]()
+    assert client.state == WebSocketState.DISCONNECTED
+
+    await fake_client.handlers[(DEFAULT_NAMESPACE, "connect")]()
+
+    assert client.state == WebSocketState.CONNECTED
+    assert fake_client.emit_calls == [
+        {
+            "args": ("subscribe_order_events", {}),
+            "kwargs": {"namespace": DEFAULT_NAMESPACE},
+        }
+    ]

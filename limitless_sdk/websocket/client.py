@@ -12,10 +12,11 @@ Performance optimizations:
 """
 
 import asyncio
+import inspect
+from copy import deepcopy
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from socketio import AsyncClient
-from socketio.exceptions import ConnectionError as SocketIOConnectionError
 
 from .._sdk_tracking import _build_sdk_tracking_headers
 from ..api.hmac import compute_hmac_signature
@@ -31,6 +32,8 @@ from .types import (
 
 DEFAULT_WS_URL = "wss://ws.limitless.exchange"
 DEFAULT_NAMESPACE = "/markets"
+HMAC_WEBSOCKET_PATH = "/socket.io/?transport=websocket&EIO=4"
+LIFECYCLE_EVENTS = {"connect", "disconnect", "connect_error"}
 SUPPORTED_SUBSCRIPTION_CHANNELS = {
     "subscribe_market_prices",
     "subscribe_positions",
@@ -49,6 +52,21 @@ def _build_iso_timestamp() -> str:
         .isoformat(timespec="milliseconds")
         .replace("+00:00", "Z")
     )
+
+
+class _FreshHeadersAsyncClient(AsyncClient):
+    """Regenerate connection headers before initial and reconnect attempts."""
+
+    def __init__(self, headers_factory: Callable[[], Dict[str, str]], **kwargs: Any):
+        self._headers_factory = headers_factory
+        super().__init__(**kwargs)
+
+    async def connect(self, url: str, **kwargs: Any) -> None:
+        # python-socketio reuses connection_headers during automatic reconnects.
+        # HMAC timestamps expire after 30 seconds, so every attempt needs a new
+        # timestamp and signature.
+        kwargs["headers"] = self._headers_factory()
+        await super().connect(url, **kwargs)
 
 
 class WebSocketClient:
@@ -118,13 +136,16 @@ class WebSocketClient:
         self._logger = logger or NoOpLogger()
         self._sio: Optional[AsyncClient] = None
         self._state = WebSocketState.DISCONNECTED
-        self._reconnect_attempts = 0
 
         # Subscription management (O(1) lookup)
-        self._subscriptions: Dict[str, SubscriptionOptions] = {}
+        self._subscriptions: Dict[SubscriptionChannel, SubscriptionOptions] = {}
 
         # Pending listeners (registered before connect)
         self._pending_listeners: List[Dict[str, Any]] = []
+
+        # Keep user callbacks separate from Socket.IO's single handler slot so
+        # registering/removing them cannot disable state updates or recovery.
+        self._lifecycle_listeners: Dict[str, Tuple[Callable, bool]] = {}
 
         # Connection lock for thread-safe operations
         self._connection_lock = asyncio.Lock()
@@ -210,7 +231,8 @@ class WebSocketClient:
 
             try:
                 # Create Socket.IO client with optimized settings
-                self._sio = AsyncClient(
+                self._sio = _FreshHeadersAsyncClient(
+                    self._build_connection_headers,
                     logger=False,  # Disable Socket.IO logger (we use our own)
                     engineio_logger=False,
                     timestamp_requests=False,
@@ -230,28 +252,10 @@ class WebSocketClient:
                 # Prepare connection URL (use base URL, namespace handled by Socket.IO)
                 ws_url = self._config.url
 
-                headers = _build_sdk_tracking_headers()
-                if self._config.hmac_credentials:
-                    timestamp = _build_iso_timestamp()
-                    headers.update({
-                        "lmts-api-key": self._config.hmac_credentials.token_id,
-                        "lmts-timestamp": timestamp,
-                        "lmts-signature": compute_hmac_signature(
-                            self._config.hmac_credentials.secret,
-                            timestamp,
-                            "GET",
-                            "/socket.io/?transport=websocket&EIO=4",
-                            "",
-                        ),
-                    })
-                elif self._config.api_key:
-                    headers['X-API-Key'] = self._config.api_key
-
                 # Connect with timeout to /markets namespace
                 await asyncio.wait_for(
                     self._sio.connect(
                         ws_url,
-                        headers=headers,
                         transports=['websocket'],  # WebSocket only (no polling fallback)
                         namespaces=[DEFAULT_NAMESPACE],  # Connect to /markets namespace
                         wait_timeout=self._config.timeout
@@ -260,7 +264,6 @@ class WebSocketClient:
                 )
 
                 self._state = WebSocketState.CONNECTED
-                self._reconnect_attempts = 0
                 self._logger.info("WebSocket connected")
 
                 # Re-subscribe to all previous subscriptions
@@ -307,6 +310,26 @@ class WebSocketClient:
                     self._logger.error(f"WebSocket connection error: {error_msg}")
                     raise
 
+    def _build_connection_headers(self) -> Dict[str, str]:
+        """Build fresh tracking and authentication headers for a connection attempt."""
+        headers = _build_sdk_tracking_headers()
+        if self._config.hmac_credentials:
+            timestamp = _build_iso_timestamp()
+            headers.update({
+                "lmts-api-key": self._config.hmac_credentials.token_id,
+                "lmts-timestamp": timestamp,
+                "lmts-signature": compute_hmac_signature(
+                    self._config.hmac_credentials.secret,
+                    timestamp,
+                    "GET",
+                    HMAC_WEBSOCKET_PATH,
+                    "",
+                ),
+            })
+        elif self._config.api_key:
+            headers['X-API-Key'] = self._config.api_key
+        return headers
+
     async def disconnect(self) -> None:
         """Disconnect from the WebSocket server.
 
@@ -335,6 +358,9 @@ class WebSocketClient:
         options: Optional[SubscriptionOptions] = None
     ) -> None:
         """Subscribe to a channel.
+
+        A new subscription replaces the saved options for that channel. For
+        market prices and positions, pass all desired markets in one call.
 
         Args:
             channel: Channel to subscribe to
@@ -379,8 +405,10 @@ class WebSocketClient:
         if options is None:
             options = {}
 
-        subscription_key = self._get_subscription_key(channel, options)
-        self._subscriptions[subscription_key] = options
+        # Keep replay data stable if the caller later reuses or mutates options.
+        options = deepcopy(options)
+        previous_options = self._subscriptions.get(channel)
+        self._subscriptions[channel] = options
 
         self._logger.info("Subscribing to channel", {"channel": channel, "options": options})
 
@@ -394,7 +422,12 @@ class WebSocketClient:
             self._logger.info("Subscription request sent", {"channel": channel, "options": options})
 
         except Exception as e:
-            self._subscriptions.pop(subscription_key, None)
+            # A later subscription or disconnect may already have replaced this entry.
+            if self._subscriptions.get(channel) is options:
+                if previous_options is None:
+                    self._subscriptions.pop(channel, None)
+                else:
+                    self._subscriptions[channel] = previous_options
             self._logger.error("Subscription error", e, {"channel": channel})
             raise
 
@@ -424,8 +457,7 @@ class WebSocketClient:
         if options is None:
             options = {}
 
-        subscription_key = self._get_subscription_key(channel, options)
-        self._subscriptions.pop(subscription_key, None)
+        self._subscriptions.pop(channel, None)
 
         self._logger.info("Unsubscribing from channel", {"channel": channel, "options": options})
 
@@ -468,7 +500,9 @@ class WebSocketClient:
             >>> client.on('orderbookUpdate', on_orderbook)
         """
         def decorator(func: Callable) -> Callable:
-            if self._sio is None:
+            if event in LIFECYCLE_EVENTS:
+                self._lifecycle_listeners[event] = (func, False)
+            elif self._sio is None:
                 # Store listener to be attached when socket is created
                 self._pending_listeners.append({"event": event, "handler": func})
             else:
@@ -503,6 +537,10 @@ class WebSocketClient:
         if self._sio is None:
             raise ConnectionError("WebSocket not initialized. Call connect() first.")
 
+        if event in LIFECYCLE_EVENTS:
+            self._lifecycle_listeners[event] = (handler, True)
+            return self
+
         # Create one-time wrapper
         async def once_wrapper(*args, **kwargs):
             await handler(*args, **kwargs)
@@ -524,6 +562,12 @@ class WebSocketClient:
         Example:
             >>> client.off('orderbookUpdate', on_orderbook)
         """
+        if event in LIFECYCLE_EVENTS:
+            listener = self._lifecycle_listeners.get(event)
+            if listener is not None and (handler is None or listener[0] == handler):
+                self._lifecycle_listeners.pop(event)
+            return self
+
         if self._sio is None:
             return self
 
@@ -555,6 +599,30 @@ class WebSocketClient:
         # Clear pending listeners
         self._pending_listeners.clear()
 
+    async def _dispatch_lifecycle_event(self, event: str, *args: Any) -> None:
+        """Notify the user after internal handling without interrupting recovery."""
+        listener = self._lifecycle_listeners.get(event)
+        if listener is None:
+            return
+        handler, once = listener
+        if once:
+            self._lifecycle_listeners.pop(event)
+        try:
+            if event == 'disconnect' and args:
+                # Support both the legacy zero-argument callback and the newer
+                # reason argument, without retrying a callback that raises TypeError.
+                signature = inspect.signature(handler)
+                try:
+                    signature.bind(*args)
+                except TypeError:
+                    signature.bind()
+                    args = ()
+            result = handler(*args)
+            if inspect.isawaitable(result):
+                await result
+        except Exception as exc:
+            self._logger.error("WebSocket lifecycle callback error", exc, {"event": event})
+
     def _setup_internal_handlers(self) -> None:
         """Setup internal event handlers for connection management.
 
@@ -563,44 +631,32 @@ class WebSocketClient:
         if self._sio is None:
             return
 
-        # Connection events
-        @self._sio.on('connect')
+        # Socket.IO dispatches lifecycle events per namespace. Registering these
+        # handlers on the default namespace misses /markets reconnects.
+        @self._sio.on('connect', namespace=DEFAULT_NAMESPACE)
         async def on_connect():
+            is_reconnect = self._state in {
+                WebSocketState.DISCONNECTED,
+                WebSocketState.ERROR,
+                WebSocketState.RECONNECTING,
+            }
             self._state = WebSocketState.CONNECTED
-            self._reconnect_attempts = 0
-            self._logger.info("WebSocket connected")
+            if is_reconnect:
+                self._logger.info("WebSocket reconnected")
+                await self._resubscribe_all()
+            await self._dispatch_lifecycle_event('connect')
 
-        @self._sio.on('disconnect')
-        async def on_disconnect():
+        @self._sio.on('disconnect', namespace=DEFAULT_NAMESPACE)
+        async def on_disconnect(*_args: Any):
             self._state = WebSocketState.DISCONNECTED
             self._logger.info("WebSocket disconnected")
+            await self._dispatch_lifecycle_event('disconnect', *_args)
 
-        @self._sio.on('connect_error')
-        async def on_connect_error(data):
+        @self._sio.on('connect_error', namespace=DEFAULT_NAMESPACE)
+        async def on_connect_error(data=None):
             self._state = WebSocketState.ERROR
             self._logger.error(f"WebSocket connection error: {data}")
-
-        # Reconnection events
-        @self._sio.on('reconnect_attempt')
-        async def on_reconnect_attempt():
-            self._state = WebSocketState.RECONNECTING
-            self._reconnect_attempts += 1
-            self._logger.info("Reconnecting...", {"attempt": self._reconnect_attempts})
-
-        @self._sio.on('reconnect')
-        async def on_reconnect():
-            self._state = WebSocketState.CONNECTED
-            self._logger.info("Reconnected", {"attempts": self._reconnect_attempts})
-            await self._resubscribe_all()
-
-        @self._sio.on('reconnect_error')
-        async def on_reconnect_error(data):
-            self._logger.error(f"Reconnection error: {data}")
-
-        @self._sio.on('reconnect_failed')
-        async def on_reconnect_failed():
-            self._state = WebSocketState.ERROR
-            self._logger.error("Reconnection failed")
+            await self._dispatch_lifecycle_event('connect_error', data)
 
     async def _resubscribe_all(self) -> None:
         """Re-subscribe to all previous subscriptions after reconnection.
@@ -613,8 +669,7 @@ class WebSocketClient:
 
         self._logger.info("Re-subscribing to channels", {"count": len(self._subscriptions)})
 
-        for subscription_key, options in list(self._subscriptions.items()):
-            channel = self._get_channel_from_key(subscription_key)
+        for channel, options in list(self._subscriptions.items()):
             try:
                 # just re-sub here
                 await self._sio.emit(
@@ -627,21 +682,6 @@ class WebSocketClient:
             except Exception as e:
                 self._logger.error("Failed to re-subscribe", e, {"channel": channel, "options": options})
 
-    def _get_subscription_key(self, channel: SubscriptionChannel, options: SubscriptionOptions) -> str:
-        """Create a unique subscription key.
-
-        Internal method for O(1) subscription lookup.
-
-        Args:
-            channel: Channel name
-            options: Subscription options
-
-        Returns:
-            Unique subscription key
-        """
-        market_slug = options.get('marketSlug', 'global')
-        return f"{channel}:{market_slug}"
-
     def _validate_subscription_channel(self, channel: SubscriptionChannel) -> None:
         """Validate websocket subscription channel against backend-supported events."""
         if channel not in SUPPORTED_SUBSCRIPTION_CHANNELS:
@@ -649,19 +689,6 @@ class WebSocketClient:
                 f"Unsupported websocket subscription channel '{channel}'. "
                 "Use a supported websocket channel constant."
             )
-
-    def _get_channel_from_key(self, key: str) -> SubscriptionChannel:
-        """Extract channel from subscription key.
-
-        Internal method for extracting channel name from subscription key.
-
-        Args:
-            key: Subscription key
-
-        Returns:
-            Channel name
-        """
-        return key.split(':')[0]  # type: ignore
 
     async def __aenter__(self):
         """Context manager entry."""
