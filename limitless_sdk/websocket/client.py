@@ -12,8 +12,11 @@ Performance optimizations:
 """
 
 import asyncio
+import inspect
+import json
+from copy import deepcopy
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from socketio import AsyncClient
 
 from .._sdk_tracking import _build_sdk_tracking_headers
@@ -31,6 +34,7 @@ from .types import (
 DEFAULT_WS_URL = "wss://ws.limitless.exchange"
 DEFAULT_NAMESPACE = "/markets"
 HMAC_WEBSOCKET_PATH = "/socket.io/?transport=websocket&EIO=4"
+LIFECYCLE_EVENTS = {"connect", "disconnect", "connect_error"}
 SUPPORTED_SUBSCRIPTION_CHANNELS = {
     "subscribe_market_prices",
     "subscribe_positions",
@@ -139,6 +143,10 @@ class WebSocketClient:
 
         # Pending listeners (registered before connect)
         self._pending_listeners: List[Dict[str, Any]] = []
+
+        # Keep user callbacks separate from Socket.IO's single handler slot so
+        # registering/removing them cannot disable state updates or recovery.
+        self._lifecycle_listeners: Dict[str, Tuple[Callable, bool]] = {}
 
         # Connection lock for thread-safe operations
         self._connection_lock = asyncio.Lock()
@@ -395,6 +403,8 @@ class WebSocketClient:
         if options is None:
             options = {}
 
+        # Keep replay data stable if the caller later reuses or mutates options.
+        options = deepcopy(options)
         subscription_key = self._get_subscription_key(channel, options)
         self._subscriptions[subscription_key] = options
 
@@ -484,7 +494,9 @@ class WebSocketClient:
             >>> client.on('orderbookUpdate', on_orderbook)
         """
         def decorator(func: Callable) -> Callable:
-            if self._sio is None:
+            if event in LIFECYCLE_EVENTS:
+                self._lifecycle_listeners[event] = (func, False)
+            elif self._sio is None:
                 # Store listener to be attached when socket is created
                 self._pending_listeners.append({"event": event, "handler": func})
             else:
@@ -519,6 +531,10 @@ class WebSocketClient:
         if self._sio is None:
             raise ConnectionError("WebSocket not initialized. Call connect() first.")
 
+        if event in LIFECYCLE_EVENTS:
+            self._lifecycle_listeners[event] = (handler, True)
+            return self
+
         # Create one-time wrapper
         async def once_wrapper(*args, **kwargs):
             await handler(*args, **kwargs)
@@ -540,6 +556,12 @@ class WebSocketClient:
         Example:
             >>> client.off('orderbookUpdate', on_orderbook)
         """
+        if event in LIFECYCLE_EVENTS:
+            listener = self._lifecycle_listeners.get(event)
+            if listener is not None and (handler is None or listener[0] == handler):
+                self._lifecycle_listeners.pop(event)
+            return self
+
         if self._sio is None:
             return self
 
@@ -571,6 +593,30 @@ class WebSocketClient:
         # Clear pending listeners
         self._pending_listeners.clear()
 
+    async def _dispatch_lifecycle_event(self, event: str, *args: Any) -> None:
+        """Notify the user after internal handling without interrupting recovery."""
+        listener = self._lifecycle_listeners.get(event)
+        if listener is None:
+            return
+        handler, once = listener
+        if once:
+            self._lifecycle_listeners.pop(event)
+        try:
+            if event == 'disconnect' and args:
+                # Support both the legacy zero-argument callback and the newer
+                # reason argument, without retrying a callback that raises TypeError.
+                signature = inspect.signature(handler)
+                try:
+                    signature.bind(*args)
+                except TypeError:
+                    signature.bind()
+                    args = ()
+            result = handler(*args)
+            if inspect.isawaitable(result):
+                await result
+        except Exception as exc:
+            self._logger.error("WebSocket lifecycle callback error", exc, {"event": event})
+
     def _setup_internal_handlers(self) -> None:
         """Setup internal event handlers for connection management.
 
@@ -592,16 +638,19 @@ class WebSocketClient:
             if is_reconnect:
                 self._logger.info("WebSocket reconnected")
                 await self._resubscribe_all()
+            await self._dispatch_lifecycle_event('connect')
 
         @self._sio.on('disconnect', namespace=DEFAULT_NAMESPACE)
         async def on_disconnect(*_args: Any):
             self._state = WebSocketState.DISCONNECTED
             self._logger.info("WebSocket disconnected")
+            await self._dispatch_lifecycle_event('disconnect', *_args)
 
         @self._sio.on('connect_error', namespace=DEFAULT_NAMESPACE)
-        async def on_connect_error(data):
+        async def on_connect_error(data=None):
             self._state = WebSocketState.ERROR
             self._logger.error(f"WebSocket connection error: {data}")
+            await self._dispatch_lifecycle_event('connect_error', data)
 
     async def _resubscribe_all(self) -> None:
         """Re-subscribe to all previous subscriptions after reconnection.
@@ -640,8 +689,15 @@ class WebSocketClient:
         Returns:
             Unique subscription key
         """
-        market_slug = options.get('marketSlug', 'global')
-        return f"{channel}:{market_slug}"
+        # Include all selectors and filters; marketSlug alone collapses modern
+        # marketSlugs/marketAddresses subscriptions into the same global entry.
+        normalized = dict(options)
+        for field in ('marketSlugs', 'marketAddresses'):
+            values = normalized.get(field)
+            if values is not None:
+                normalized[field] = sorted(set(values))
+        serialized = json.dumps(normalized, sort_keys=True, separators=(',', ':'))
+        return f"{channel}:{serialized}"
 
     def _validate_subscription_channel(self, channel: SubscriptionChannel) -> None:
         """Validate websocket subscription channel against backend-supported events."""
