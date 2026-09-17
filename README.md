@@ -1031,6 +1031,14 @@ points = positions['accumulativePoints']
 
 ## Changelog
 
+### v1.1.1
+
+- Restore subscriptions and refresh HMAC authentication on automatic WebSocket reconnects.
+- Keep SDK lifecycle handling active when user connection callbacks are registered or removed.
+- Preserve separately added market subscriptions so every subscribed market is restored after reconnect.
+
+See [CHANGELOG.md](CHANGELOG.md#111) for details.
+
 ### v1.1.0
 
 **Release Date**: June 8, 2026

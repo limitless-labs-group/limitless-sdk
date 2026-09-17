@@ -5,6 +5,15 @@ All notable changes to the Limitless Exchange Python SDK will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1]
+
+### Fixed
+
+- Restore saved WebSocket subscriptions when the `/markets` namespace reconnects, and update SDK state on namespace disconnects and connection errors.
+- Regenerate HMAC timestamps and signatures for every WebSocket connection attempt, including automatic reconnects.
+- Preserve internal lifecycle handling when users register or remove `connect`, `disconnect`, or `connect_error` callbacks. User callbacks run after internal handling, and callback exceptions are logged without interrupting recovery.
+- Preserve separate market subscriptions across reconnects by keying saved subscriptions on their full options, including `marketSlugs`, `marketAddresses`, and filters. Equivalent market-list orderings deduplicate, and saved options are copied to prevent caller mutations from changing replay data.
+
 ## [1.1.0]
 
 ### Added
