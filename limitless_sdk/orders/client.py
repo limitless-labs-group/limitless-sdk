@@ -3,6 +3,7 @@
 from typing import Any, Dict, List, Optional, Union
 from eth_account import Account
 
+from ..api.errors import APIError
 from ..api.http_client import HttpClient, HttpRawResponse
 from ..types.orders import (
     Side,
@@ -160,9 +161,16 @@ class OrderClient:
             portfolio_fetcher = PortfolioFetcher(self._http_client, self._logger)
             profile = await portfolio_fetcher.get_profile(self._wallet.address)
 
+            effective_fee = profile.get("effectiveFeeRateBps")
+            if not isinstance(effective_fee, int) or isinstance(effective_fee, bool):
+                rank = profile.get("rank")
+                effective_fee = rank.get("feeRateBps") if isinstance(rank, dict) else None
+            if not isinstance(effective_fee, int) or isinstance(effective_fee, bool):
+                effective_fee = 300
+
             self._cached_user_data = UserData(
                 user_id=profile["id"],
-                fee_rate_bps=profile.get("rank", {}).get("feeRateBps", 300)
+                fee_rate_bps=effective_fee,
             )
 
             # Initialize order builder with fetched data
@@ -326,59 +334,87 @@ class OrderClient:
             }
         )
 
-        # Step 2: Build unsigned order
-        if is_fok:
-            unsigned_order = self._builder.build_fok_order(
-                token_id=token_id,
-                side=side,
-                maker_amount=maker_amount,
-                expiration=expiration,
-                taker=taker,
+        async def build_payload() -> Dict[str, Any]:
+            if is_fok:
+                unsigned_order = self._builder.build_fok_order(
+                    token_id=token_id,
+                    side=side,
+                    maker_amount=maker_amount,
+                    expiration=expiration,
+                    taker=taker,
+                )
+            else:
+                unsigned_order = self._builder.build_order(
+                    token_id=token_id,
+                    price=price,
+                    size=size,
+                    side=side,
+                    expiration=expiration,
+                    taker=taker,
+                )
+
+            self._logger.debug(
+                "Built unsigned order",
+                {
+                    "salt": unsigned_order.salt,
+                    "maker_amount": unsigned_order.maker_amount,
+                    "taker_amount": unsigned_order.taker_amount,
+                },
             )
-        else:
-            unsigned_order = self._builder.build_order(
-                token_id=token_id,
-                price=price,
-                size=size,
-                side=side,
-                expiration=expiration,
-                taker=taker,
+            signature = await self._signer.sign_order(
+                unsigned_order, dynamic_signing_config
             )
+            signed_order = SignedOrder(
+                **unsigned_order.model_dump(), signature=signature
+            )
+            payload = CreateOrderDto(
+                order=signed_order,
+                owner_id=user_data.user_id,
+                order_type=order_type.value,
+                market_slug=market_slug,
+                post_only=post_only if order_type == OrderType.GTC else None,
+            )
+            return payload.model_dump(by_alias=True, exclude_none=True)
 
-        self._logger.debug(
-            "Built unsigned order",
-            {
-                "salt": unsigned_order.salt,
-                "maker_amount": unsigned_order.maker_amount,
-                "taker_amount": unsigned_order.taker_amount,
-            },
-        )
+        async def submit(payload: Dict[str, Any]) -> Any:
+            self._logger.debug("Submitting order to API", {
+                "payload": payload,
+                "order_type": order_type.value,
+                "market_slug": market_slug,
+            })
+            if with_raw_response:
+                return await self._http_client.post_raw("/orders", payload)
+            return await self._http_client.post("/orders", payload)
 
-        # Step 3: Sign order with dynamic venue
-        signature = await self._signer.sign_order(unsigned_order, dynamic_signing_config)
+        try:
+            response_data = await submit(await build_payload())
+        except APIError as error:
+            error_data = error.response_data
+            expected_fee = (
+                error_data.get("expectedFeeRateBps")
+                if isinstance(error_data, dict)
+                else None
+            )
+            if not (
+                error.status_code == 400
+                and isinstance(error_data, dict)
+                and error_data.get("code") == "FEE_RATE_MISMATCH"
+                and isinstance(expected_fee, int)
+                and not isinstance(expected_fee, bool)
+            ):
+                raise
 
-        signed_order = SignedOrder(**unsigned_order.model_dump(), signature=signature)
-
-        payload = CreateOrderDto(
-            order=signed_order,
-            owner_id=user_data.user_id,
-            order_type=order_type.value,
-            market_slug=market_slug,
-            post_only=post_only if order_type == OrderType.GTC else None,
-        )
-        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
-        self._logger.debug("Submitting order to API", {
-            "payload": payload_dict,
-            "order_type": order_type.value,
-            "market_slug": market_slug,
-        })
+            retry_fee = int(expected_fee)
+            user_data.fee_rate_bps = retry_fee
+            self._builder = OrderBuilder(
+                maker_address=self._wallet.address,
+                fee_rate_bps=retry_fee,
+                price_tick=0.001,
+            )
+            response_data = await submit(await build_payload())
 
         if with_raw_response:
-            return await self._http_client.post_raw("/orders", payload_dict)
-
-        response_data = await self._http_client.post(
-            "/orders", payload_dict
-        )
+            return response_data
 
         self._logger.info(
             "Order created successfully", {"order_id": response_data["order"]["id"]}

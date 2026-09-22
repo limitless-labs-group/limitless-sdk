@@ -47,6 +47,7 @@ class UserProfile(BaseModel):
         id: User ID (used as ownerId for orders)
         account: User's Ethereum address
         client: Client type used for authentication
+        effective_fee_rate_bps: Profile-specific effective fee rate in basis points
         rank: User rank information containing feeRateBps
         created_at: Account creation timestamp (optional)
 
@@ -76,6 +77,7 @@ class UserProfile(BaseModel):
     id: int
     account: str
     client: str
+    effective_fee_rate_bps: Optional[Any] = Field(None, alias="effectiveFeeRateBps")
     rank: Optional[UserRank] = None
     created_at: Optional[str] = Field(None, alias="createdAt")
 
@@ -102,7 +104,12 @@ class UserProfile(BaseModel):
 
     @property
     def fee_rate_bps(self) -> int:
-        """Get fee rate from rank, defaulting to 300 if not available."""
+        """Get the profile effective fee, then rank fee, defaulting to 300."""
+        if (
+            isinstance(self.effective_fee_rate_bps, int)
+            and not isinstance(self.effective_fee_rate_bps, bool)
+        ):
+            return self.effective_fee_rate_bps
         if self.rank and hasattr(self.rank, 'fee_rate_bps'):
             return self.rank.fee_rate_bps
         return 300  # Default 3% fee
