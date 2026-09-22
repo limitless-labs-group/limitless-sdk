@@ -333,10 +333,11 @@ class OrderClient:
                 "adapter": venue.adapter,
             }
         )
+        builder = self._builder
 
         async def build_payload() -> Dict[str, Any]:
             if is_fok:
-                unsigned_order = self._builder.build_fok_order(
+                unsigned_order = builder.build_fok_order(
                     token_id=token_id,
                     side=side,
                     maker_amount=maker_amount,
@@ -344,7 +345,7 @@ class OrderClient:
                     taker=taker,
                 )
             else:
-                unsigned_order = self._builder.build_order(
+                unsigned_order = builder.build_order(
                     token_id=token_id,
                     price=price,
                     size=size,
@@ -405,8 +406,7 @@ class OrderClient:
                 raise
 
             retry_fee = int(expected_fee)
-            user_data.fee_rate_bps = retry_fee
-            self._builder = OrderBuilder(
+            builder = OrderBuilder(
                 maker_address=self._wallet.address,
                 fee_rate_bps=retry_fee,
                 price_tick=0.001,

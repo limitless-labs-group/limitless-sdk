@@ -132,8 +132,59 @@ async def test_fee_mismatch_rebuilds_resigns_and_reposts_once(
         300,
         150,
     ]
-    assert client._cached_user_data.fee_rate_bps == 150
-    assert client._builder.fee_rate_bps == 150
+    assert client._cached_user_data.fee_rate_bps == 300
+    assert client._builder.fee_rate_bps == 300
+
+
+@pytest.mark.asyncio
+async def test_market_retry_fee_does_not_change_later_create_or_cancel_replace():
+    client, http = _client()
+    mismatch = ValidationError(
+        "fee mismatch",
+        status_code=400,
+        response_data={
+            "code": "FEE_RATE_MISMATCH",
+            "expectedFeeRateBps": 0,
+        },
+    )
+    create_payloads = []
+    cancel_replace_payload = None
+
+    async def post(path, payload, **_kwargs):
+        nonlocal cancel_replace_payload
+        if path == "/orders":
+            create_payloads.append(payload)
+            if len(create_payloads) == 1:
+                raise mismatch
+            order = dict(payload["order"])
+            order["id"] = f"order-{len(create_payloads)}"
+            return {"order": order, "makerMatches": []}
+        cancel_replace_payload = payload
+        return {
+            "cancel": {
+                "status": "FAILURE",
+                "error": {"code": "X", "message": "x"},
+            },
+            "replacement": {"status": "NOT_ATTEMPTED"},
+        }
+
+    http.post = AsyncMock(side_effect=post)
+
+    await client.create_order(**{**_order_args(), "market_slug": "fee-disabled"})
+    await client.create_order(**{**_order_args(), "market_slug": "fee-enabled"})
+    await client.cancel_replace(
+        order_id="old-order",
+        **{**_order_args(), "market_slug": "fee-enabled"},
+    )
+
+    assert [payload["order"]["feeRateBps"] for payload in create_payloads] == [
+        300,
+        0,
+        300,
+    ]
+    assert cancel_replace_payload["replacement"]["order"]["feeRateBps"] == 300
+    assert client._cached_user_data.fee_rate_bps == 300
+    assert client._builder.fee_rate_bps == 300
 
 
 @pytest.mark.asyncio
