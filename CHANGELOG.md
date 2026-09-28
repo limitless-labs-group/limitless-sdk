@@ -5,6 +5,12 @@ All notable changes to the Limitless Exchange Python SDK will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- `OmeOrderEvent` is now a `Union` of `OmeLifecycleOrderEvent` (`PLACEMENT`/`UPDATE`/`CANCELLATION`, numeric `price` and `remainingSize`) and `OmeExecutionOrderEvent` (`EXECUTION`, string `price` and `remainingSize` in raw 6-decimal units, `status` present). The previous single `TypedDict` typed the terminal frame's `price` and `remainingSize` as `float`, but the gateway sends them as strings. Narrow on `type`. Both shapes now declare `occurredAt` and `publishedAt`; the lifecycle shape declares `reason`.
+
 ## [1.1.1]
 
 ### Fixed

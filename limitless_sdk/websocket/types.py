@@ -191,27 +191,57 @@ class OraclePriceData(TypedDict):
     value: float
 
 
-class OmeOrderEvent(TypedDict, total=False):
-    """OME order lifecycle event.
+class OmeLifecycleOrderEvent(TypedDict, total=False):
+    """OME lifecycle frame (``PLACEMENT``/``UPDATE``/``CANCELLATION``).
 
-    Covers OME lifecycle frames (``PLACEMENT``/``UPDATE``/``CANCELLATION``) and
-    the FAK/FOK terminal ``EXECUTION`` frame. ``eventId`` is a numeric serial for
-    lifecycle frames and the string ``"terminal:<orderId>"`` for ``EXECUTION``.
-    ``status`` is present only on ``EXECUTION``.
+    ``price`` and ``remainingSize`` are JSON numbers; ``remainingSize`` is in raw
+    6-decimal units. ``eventId`` is a numeric serial. ``reason`` is present on a
+    ``CANCELLATION`` caused by self-trade prevention (``STP_MAKER_CANCELLED``).
     """
     clientOrderId: str
-    eventId: Union[int, str]
+    eventId: int
     marketId: str
+    occurredAt: Optional[str]
     orderId: str
     price: float
+    publishedAt: str
+    reason: str
     remainingSize: float
+    side: str
+    source: Literal["OME"]
+    timestamp: str
+    token: str
+    type: Literal["PLACEMENT", "UPDATE", "CANCELLATION"]
+    userId: int
+
+
+class OmeExecutionOrderEvent(TypedDict, total=False):
+    """FAK/FOK terminal ``EXECUTION`` frame, emitted once per immediate-or-cancel order.
+
+    Unlike lifecycle frames, ``price`` and ``remainingSize`` are strings;
+    ``remainingSize`` is in raw 6-decimal units (``"0"`` on ``FILLED``, the
+    original size on ``KILLED``). ``eventId`` is ``"terminal:<orderId>"``. The
+    frame carries no ``clientOrderId``.
+    """
+    eventId: str
+    marketId: str
+    occurredAt: Optional[str]
+    orderId: str
+    price: str
+    publishedAt: str
+    remainingSize: str
     side: str
     source: Literal["OME"]
     status: Literal["FILLED", "PARTIALLY_FILLED", "KILLED"]
     timestamp: str
     token: str
-    type: Literal["PLACEMENT", "UPDATE", "CANCELLATION", "EXECUTION"]
+    type: Literal["EXECUTION"]
     userId: int
+
+
+OmeOrderEvent = Union[OmeLifecycleOrderEvent, OmeExecutionOrderEvent]
+"""OME order event. Narrow on ``type`` to get the numeric lifecycle shape or the
+string-typed ``EXECUTION`` terminal shape."""
 
 
 class SettlementMakerMatch(TypedDict):
