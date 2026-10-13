@@ -5,6 +5,15 @@ All notable changes to the Limitless Exchange Python SDK will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Collateral fee venues**: `Venue` now models the optional `fee_module` (`feeModule`) and `fee_module_type` (`feeModuleType`) fields, and `is_collateral_fee_venue(venue)` / `FEE_MODULE_TYPE_COLLATERAL` are exported from `limitless_sdk` and `limitless_sdk.types`.
+- `OrderClient.create_order`, `OrderClient.cancel_replace` / `cancel_replace_batch`, the `DelegatedOrderService` create and cancel-replace methods, and the legacy `LimitlessClient.create_order` sign `feeRateBps = 0` for markets on collateral fee venues. Legacy venues are unchanged.
+- `DelegatedOrderService` accepts an optional `market_fetcher` and resolves the market venue (cached, or fetched once per market). The root `Client` shares its `markets` fetcher with it.
+- `examples/00_setup_approvals.py` approves USDC to `venue.feeModule` on collateral fee venues. README documents the integration steps.
+
 ## [1.1.1]
 
 ### Fixed

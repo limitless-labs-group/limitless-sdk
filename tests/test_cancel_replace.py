@@ -15,7 +15,14 @@ from limitless_sdk.types import (
     Side,
     StpPolicy,
     UserData,
+    Venue,
 )
+
+
+def _legacy_market_fetcher() -> Mock:
+    market_fetcher = Mock()
+    market_fetcher.get_venue.return_value = Venue(exchange="0x" + "1" * 40)
+    return market_fetcher
 
 
 def _result(status="NOT_ATTEMPTED"):
@@ -51,7 +58,7 @@ async def test_delegated_cancel_replace_payload_casing_and_omissions(monkeypatch
     http = Mock()
     http.require_auth = Mock()
     http.post = AsyncMock(return_value=_result())
-    service = DelegatedOrderService(http)
+    service = DelegatedOrderService(http, market_fetcher=_legacy_market_fetcher())
     monkeypatch.setattr(
         "limitless_sdk.orders.builder.OrderBuilder._generate_salt", lambda self: 123
     )
@@ -86,7 +93,7 @@ async def test_delegated_batch_uses_batch_path_and_has_no_client_max(monkeypatch
     http.post = AsyncMock(
         return_value={"results": [{"index": i, **_result()} for i in range(5)]}
     )
-    service = DelegatedOrderService(http)
+    service = DelegatedOrderService(http, market_fetcher=_legacy_market_fetcher())
     monkeypatch.setattr(
         "limitless_sdk.orders.builder.OrderBuilder._generate_salt", lambda self: 123
     )

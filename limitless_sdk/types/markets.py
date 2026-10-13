@@ -200,12 +200,43 @@ class Venue(BaseModel):
                   simple CLOB SELL orders require CT approval to this address)
         adapter: Adapter contract address (optional, required for NegRisk/Grouped markets only,
                  SELL orders on NegRisk markets require CT approval to both exchange AND adapter)
+        fee_module: Fee module contract address (present only on collateral fee venues).
+                    The order signer must approve USDC to this address for every order
+                    that is not post-only.
+        fee_module_type: Fee module type. ``"COLLATERAL"`` marks a collateral fee venue;
+                         omitted on legacy venues. See :func:`is_collateral_fee_venue`.
     """
 
     exchange: str
     adapter: Optional[str] = None
+    fee_module: Optional[str] = Field(default=None, alias="feeModule")
+    fee_module_type: Optional[str] = Field(default=None, alias="feeModuleType")
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+FEE_MODULE_TYPE_COLLATERAL = "COLLATERAL"
+"""``venue.fee_module_type`` value that marks a collateral fee venue."""
+
+
+def is_collateral_fee_venue(venue: Optional[Venue]) -> bool:
+    """Return True when the venue charges the taker fee in USDC via a fee module.
+
+    Collateral fee venues report ``feeModuleType == "COLLATERAL"`` and a
+    ``feeModule`` address. Legacy venues omit both fields.
+
+    On collateral fee venues:
+    - orders must be signed with ``feeRateBps = 0``;
+    - the order signer must approve USDC to ``venue.fee_module`` for every
+      order that is not post-only (BUY and SELL).
+
+    Args:
+        venue: Market venue, or None
+
+    Returns:
+        True for collateral fee venues, False for legacy venues or None
+    """
+    return venue is not None and venue.fee_module_type == FEE_MODULE_TYPE_COLLATERAL
 
 
 class MarketTokens(BaseModel):

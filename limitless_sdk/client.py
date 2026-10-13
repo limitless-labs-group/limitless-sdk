@@ -13,6 +13,7 @@ from eth_account import Account
 
 from ._sdk_tracking import _build_sdk_tracking_headers
 from .exceptions import LimitlessAPIError, RateLimitError, AuthenticationError
+from .types.markets import FEE_MODULE_TYPE_COLLATERAL
 from .models import (
     CreateOrderDto,
     CancelOrderDto,
@@ -365,6 +366,10 @@ class LimitlessClient:
         
         # Calculate amounts as integers (scaled by 6 decimals for USDC)
         maker_amount, taker_amount = await self._calculate_amounts(price, amount, side)
+
+        # Collateral fee venues require feeRateBps = 0
+        venue = market_details.get('venue') or {}
+        fee_rate_bps = 0 if venue.get('feeModuleType') == FEE_MODULE_TYPE_COLLATERAL else 300
         
         # Create the order object without signature first
         order = Order(
@@ -374,7 +379,7 @@ class LimitlessClient:
             tokenId=token_id,  # Use the real token ID
             makerAmount=int(maker_amount),
             takerAmount=int(taker_amount),
-            feeRateBps=300,  # 3% fee
+            feeRateBps=fee_rate_bps,
             side=side,
             signature="0x",  # Will be filled after signing
             signatureType=0,  # EOA
