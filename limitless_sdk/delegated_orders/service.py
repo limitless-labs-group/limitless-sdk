@@ -1,16 +1,18 @@
 """Delegated-order service."""
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 from urllib.parse import quote
 
 from ..api.http_client import HttpClient, HttpRawResponse
-from ..orders.builder import OrderBuilder
+from ..markets.fetcher import MarketFetcher
+from ..orders.builder import OrderBuilder, apply_venue_fee_rate
 from ..types.delegated_orders import (
     CancelResponse,
     CreateDelegatedOrderRequest,
     DelegatedOrderSubmission,
 )
 from ..types.logger import ILogger, NoOpLogger
+from ..types.markets import Market, Venue
 from ..types.orders import (
     CancelReplaceBatchRequest,
     CancelReplaceBatchResponse,
@@ -31,11 +33,30 @@ DEFAULT_DELEGATED_FEE_RATE_BPS = 300
 
 
 class DelegatedOrderService:
-    """Delegated partner-order operations."""
+    """Delegated partner-order operations.
 
-    def __init__(self, http_client: HttpClient, logger: Optional[ILogger] = None):
+    Orders are built for the market's venue: on collateral fee venues the
+    order is submitted with ``feeRateBps = 0`` regardless of ``fee_rate_bps``.
+    The venue is read from the market fetcher's cache, or fetched once per
+    market when not cached yet.
+    """
+
+    def __init__(
+        self,
+        http_client: HttpClient,
+        logger: Optional[ILogger] = None,
+        market_fetcher: Optional[MarketFetcher] = None,
+    ):
         self._http_client = http_client
         self._logger = logger or NoOpLogger()
+        self._market_fetcher = market_fetcher or MarketFetcher(http_client, logger)
+
+    async def _resolve_venue(self, market_slug: str) -> Optional[Venue]:
+        venue = self._market_fetcher.get_venue(market_slug)
+        if venue is None:
+            market = cast(Market, await self._market_fetcher.get_market(market_slug))
+            venue = market.venue
+        return venue
 
     async def create_order(
         self,
@@ -89,6 +110,9 @@ class DelegatedOrderService:
                 expiration=expiration,
                 taker=taker,
             )
+        unsigned_order = apply_venue_fee_rate(
+            unsigned_order, await self._resolve_venue(market_slug)
+        )
 
         submission = DelegatedOrderSubmission(
             **{
@@ -110,7 +134,7 @@ class DelegatedOrderService:
             {
                 "market_slug": market_slug,
                 "on_behalf_of": on_behalf_of,
-                "fee_rate_bps": effective_fee_rate_bps,
+                "fee_rate_bps": unsigned_order.fee_rate_bps,
             },
         )
 
@@ -184,6 +208,9 @@ class DelegatedOrderService:
                 expiration=expiration,
                 taker=taker,
             )
+        unsigned_order = apply_venue_fee_rate(
+            unsigned_order, await self._resolve_venue(market_slug)
+        )
 
         replacement = CancelReplaceOrderRequest(
             order=CancelReplaceOrderSubmission(**unsigned_order.model_dump()),

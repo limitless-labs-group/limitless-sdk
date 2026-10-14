@@ -1,9 +1,28 @@
 """Order builder for constructing unsigned orders."""
 
 import secrets
-import time
 from typing import Optional
+from ..types.markets import Venue, is_collateral_fee_venue
 from ..types.orders import UnsignedOrder, Side, SignatureType
+
+
+def apply_venue_fee_rate(order: UnsignedOrder, venue: Optional[Venue]) -> UnsignedOrder:
+    """Return the order with the fee rate the venue expects.
+
+    Collateral fee venues require ``feeRateBps = 0``; orders for legacy venues
+    are returned unchanged.
+
+    Args:
+        order: Unsigned order built for the market
+        venue: Venue of the market the order targets
+
+    Returns:
+        The same order for legacy venues, or a copy with ``fee_rate_bps = 0``
+        for collateral fee venues
+    """
+    if is_collateral_fee_venue(venue):
+        return order.model_copy(update={"fee_rate_bps": 0})
+    return order
 
 
 class OrderBuilder:

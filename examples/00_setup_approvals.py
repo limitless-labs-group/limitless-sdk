@@ -18,6 +18,12 @@ NegRisk Markets:
 - BUY orders: Approve USDC → venue.exchange
 - SELL orders: Approve CT → venue.exchange AND venue.adapter (TWO operator approvals!)
 
+Collateral fee venues (venue.feeModuleType == "COLLATERAL"):
+- Every order that is not postOnly (BUY and SELL): Approve USDC → venue.feeModule
+- One approval per fee module address. SIMPLE and NegRisk markets use different
+  fee modules, so always read venue.feeModule from the market.
+- The approvals above (exchange / adapter) stay as they are.
+
 These approvals are permanent (until revoked) and only need to be set once per wallet.
 
 Setup:
@@ -35,6 +41,7 @@ from web3 import Web3
 
 from limitless_sdk.api import HttpClient
 from limitless_sdk.markets import MarketFetcher
+from limitless_sdk.types import is_collateral_fee_venue
 from limitless_sdk.utils.constants import get_contract_address, DEFAULT_CHAIN_ID
 
 # Load environment variables
@@ -308,6 +315,48 @@ async def setup_approvals():
             print(f"   ❌ Error: {e}\n")
             return
 
+    # Collateral fee venues: approve USDC to the venue's fee module
+    if is_collateral_fee_venue(venue) and venue.fee_module:
+        print("🔍 Collateral fee venue - checking USDC approval for venue.feeModule...")
+        try:
+            fee_module_allowance = usdc_contract.functions.allowance(
+                Web3.to_checksum_address(account.address),
+                Web3.to_checksum_address(venue.fee_module)
+            ).call()
+
+            if fee_module_allowance > 0:
+                print(f"   ✅ USDC already approved for venue.feeModule (allowance: {fee_module_allowance})")
+            else:
+                print("   📝 Approving USDC for venue.feeModule...")
+                tx = usdc_contract.functions.approve(
+                    Web3.to_checksum_address(venue.fee_module),
+                    2**256 - 1
+                ).build_transaction({
+                    'from': account.address,
+                    'nonce': w3.eth.get_transaction_count(account.address),
+                    'gas': 100000,
+                    'maxFeePerGas': w3.eth.gas_price,
+                    'maxPriorityFeePerGas': w3.eth.max_priority_fee,
+                    'chainId': CHAIN_ID,
+                })
+
+                signed_tx = account.sign_transaction(tx)
+                tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+                print(f"   Transaction sent: {tx_hash.hex()}")
+
+                print("   ⏳ Waiting for confirmation...")
+                receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+
+                if receipt['status'] == 1:
+                    print("   ✅ USDC approval for fee module successful!\n")
+                else:
+                    print("   ❌ USDC approval for fee module failed\n")
+                    return
+
+        except Exception as e:
+            print(f"   ❌ Error: {e}\n")
+            return
+
     # Summary
     print("=" * 60)
     print("✅ Token Approval Setup Complete!")
@@ -318,6 +367,8 @@ async def setup_approvals():
     print("  - Place SELL orders (CT approved)")
     if is_negrisk:
         print("  - Trade on NegRisk markets (CT approved for both exchange and adapter)")
+    if is_collateral_fee_venue(venue):
+        print("  - Place non-postOnly orders on this collateral fee venue (USDC approved for venue.feeModule)")
     print()
     print("These approvals are permanent until you revoke them.")
     print("You only need to run this setup once per wallet.")

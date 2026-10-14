@@ -27,7 +27,7 @@ from ..types.logger import ILogger, NoOpLogger
 from ..utils.constants import ZERO_ADDRESS
 from ..markets.fetcher import MarketFetcher
 from ..portfolio.fetcher import PortfolioFetcher
-from .builder import OrderBuilder
+from .builder import OrderBuilder, apply_venue_fee_rate
 from .signer import OrderSigner
 
 
@@ -344,6 +344,7 @@ class OrderClient:
                 expiration=expiration,
                 taker=taker,
             )
+        unsigned_order = apply_venue_fee_rate(unsigned_order, venue)
 
         self._logger.debug(
             "Built unsigned order",
@@ -444,6 +445,7 @@ class OrderClient:
                 expiration=expiration,
                 taker=taker,
             )
+        unsigned_order = apply_venue_fee_rate(unsigned_order, venue)
         signature = await self._signer.sign_order(unsigned_order, signing_config)
         submission = CancelReplaceOrderSubmission(
             **unsigned_order.model_dump(), signature=signature
@@ -627,6 +629,12 @@ class OrderClient:
         Supports both GTC and FOK order types:
         - GTC orders: Provide price and size parameters
         - FOK orders: Provide maker_amount parameter
+
+        This helper does not know the market venue and always uses the profile
+        fee rate. For markets on a collateral fee venue (see
+        ``is_collateral_fee_venue(market.venue)``), set ``fee_rate_bps`` to 0
+        before signing, e.g. ``order.model_copy(update={"fee_rate_bps": 0})``.
+        ``create_order`` and ``cancel_replace`` do this automatically.
 
         Args:
             token_id: Token ID for the outcome

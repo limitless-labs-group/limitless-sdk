@@ -12,6 +12,9 @@ from .markets import (
     ActiveMarketsSortBy,
     ActiveMarketsParams,
     ActiveMarketsResponse,
+    Venue,
+    FEE_MODULE_TYPE_COLLATERAL,
+    is_collateral_fee_venue,
 )
 from .market_pages import (
     NavigationNode,
@@ -155,6 +158,9 @@ __all__ = [
     "ActiveMarketsSortBy",
     "ActiveMarketsParams",
     "ActiveMarketsResponse",
+    "Venue",
+    "FEE_MODULE_TYPE_COLLATERAL",
+    "is_collateral_fee_venue",
     "NavigationNode",
     "FilterGroupOption",
     "FilterGroup",

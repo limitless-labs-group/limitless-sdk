@@ -12,7 +12,7 @@ Example:
     >>> markets = await market_fetcher.get_markets()
 """
 
-__version__ = "1.1.1"
+__version__ = "1.2.0"
 
 # API layer - HTTP client and error handling
 from .api import (
@@ -95,6 +95,9 @@ from .types import (
     ActiveMarketsSortBy,
     ActiveMarketsParams,
     ActiveMarketsResponse,
+    Venue,
+    FEE_MODULE_TYPE_COLLATERAL,
+    is_collateral_fee_venue,
     NavigationNode,
     FilterGroupOption,
     FilterGroup,
@@ -306,6 +309,9 @@ __all__ = [
     "ActiveMarketsSortBy",
     "ActiveMarketsParams",
     "ActiveMarketsResponse",
+    "Venue",
+    "FEE_MODULE_TYPE_COLLATERAL",
+    "is_collateral_fee_venue",
     "NavigationNode",
     "FilterGroupOption",
     "FilterGroup",

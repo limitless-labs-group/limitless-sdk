@@ -47,7 +47,9 @@ class Client:
         self.portfolio = PortfolioFetcher(self.http, shared_logger)
         self.api_tokens = ApiTokenService(self.http, shared_logger)
         self.partner_accounts = PartnerAccountService(self.http, shared_logger)
-        self.delegated_orders = DelegatedOrderService(self.http, shared_logger)
+        self.delegated_orders = DelegatedOrderService(
+            self.http, shared_logger, market_fetcher=self.markets
+        )
         self.server_wallets = ServerWalletService(self.http, shared_logger)
         self.partner_amm = PartnerAmmService(self.http, shared_logger)
 
@@ -71,7 +73,9 @@ class Client:
         client.portfolio = PortfolioFetcher(http_client, shared_logger)
         client.api_tokens = ApiTokenService(http_client, shared_logger)
         client.partner_accounts = PartnerAccountService(http_client, shared_logger)
-        client.delegated_orders = DelegatedOrderService(http_client, shared_logger)
+        client.delegated_orders = DelegatedOrderService(
+            http_client, shared_logger, market_fetcher=client.markets
+        )
         client.server_wallets = ServerWalletService(http_client, shared_logger)
         client.partner_amm = PartnerAmmService(http_client, shared_logger)
         return client

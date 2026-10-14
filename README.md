@@ -523,6 +523,26 @@ if market.neg_risk_request_id:
 
 For complete examples with proper ABIs and transaction handling, see [examples/00_setup_approvals.py](https://github.com/limitless-labs-group/limitless-sdk/blob/main/examples/00_setup_approvals.py).
 
+### Collateral Fee Venues
+
+Some markets trade on collateral fee venues, which charge the taker fee in USDC through a separate fee module contract. Markets on legacy venues behave exactly as before.
+
+1. **Detect the venue.** `market.venue` carries `fee_module` (`feeModule`) and `fee_module_type` (`feeModuleType`) on collateral fee venues; legacy venues omit both. `feeModuleType == "COLLATERAL"` means a collateral fee venue:
+
+   ```python
+   from limitless_sdk import is_collateral_fee_venue
+
+   market = await market_fetcher.get_market('market-slug')
+   if is_collateral_fee_venue(market.venue):
+       fee_module = market.venue.fee_module
+   ```
+
+2. **Approve USDC to the fee module.** The wallet that signs orders must call `USDC.approve(venue.fee_module, amount)` (max uint recommended). This is required for every order that is not `post_only` (takers, and resting orders not flagged `post_only`), for both BUY and SELL; `post_only` orders don't need it. Without it the API rejects the order with `Insufficient collateral allowance for the order fee.` One approval is needed per fee module address. SIMPLE and NegRisk markets use different fee modules, so always read `venue.fee_module` from the market and never hardcode it. `examples/00_setup_approvals.py` handles this step.
+3. **Keep your existing approvals.** Collateral fee venues use the same exchange (and NegRisk adapter) contracts, so the USDC and Conditional Token approvals above stay valid. The EIP-712 order domain (verifying contract = `venue.exchange`) is unchanged.
+4. **Sign `feeRateBps = 0`.** Any other value is rejected with `FEE_RATE_MISMATCH`. `OrderClient.create_order`, `OrderClient.cancel_replace` and the `DelegatedOrderService` methods do this automatically from the market venue. `OrderClient.build_unsigned_order` and `OrderBuilder` don't know the venue: on collateral fee venues set `fee_rate_bps` to 0 yourself before signing. Legacy venues keep the current fee rate behavior.
+5. **Keep a little extra USDC.** BUY orders on collateral fee venues need enough USDC for the order plus the trading fee.
+6. **Managed wallets need no action.** Server wallets and other wallets that Limitless provisions and manages get the fee module approval automatically.
+
 ## Order Management
 
 The SDK supports three order types:
@@ -1035,6 +1055,15 @@ points = positions['accumulativePoints']
   ```
 
 ## Changelog
+
+### v1.2.0
+
+- Collateral fee venue support: `Venue.fee_module` / `Venue.fee_module_type`, plus `is_collateral_fee_venue(venue)` and `FEE_MODULE_TYPE_COLLATERAL` exported from `limitless_sdk`.
+- `OrderClient`, `DelegatedOrderService` and the legacy `LimitlessClient` sign `feeRateBps = 0` on collateral fee venues; legacy venues are unchanged.
+- `DelegatedOrderService` accepts a shared `market_fetcher` and resolves the market venue from its cache (fetching once per market on a miss).
+- `examples/00_setup_approvals.py` approves USDC to `venue.feeModule` on collateral fee venues.
+
+See [CHANGELOG.md](CHANGELOG.md#120) for details.
 
 ### v1.1.1
 

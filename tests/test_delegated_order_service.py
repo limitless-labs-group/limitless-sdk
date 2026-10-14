@@ -5,8 +5,14 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from limitless_sdk.delegated_orders import DelegatedOrderService
-from limitless_sdk.types import OrderType, Side
+from limitless_sdk.types import OrderType, Side, Venue
 from limitless_sdk.utils import ZERO_ADDRESS
+
+
+def _legacy_market_fetcher() -> Mock:
+    market_fetcher = Mock()
+    market_fetcher.get_venue.return_value = Venue(exchange="0x" + "1" * 40)
+    return market_fetcher
 
 
 def _order_response_payload() -> dict:
@@ -38,7 +44,7 @@ async def test_create_order_builds_zero_address_payload(monkeypatch):
     http_client = Mock()
     http_client.require_auth = Mock()
     http_client.post = AsyncMock(return_value=_order_response_payload())
-    service = DelegatedOrderService(http_client)
+    service = DelegatedOrderService(http_client, market_fetcher=_legacy_market_fetcher())
 
     monkeypatch.setattr(
         "limitless_sdk.orders.builder.OrderBuilder._generate_salt",
@@ -84,7 +90,7 @@ async def test_create_order_supports_fok_maker_amount(monkeypatch):
             },
         }
     )
-    service = DelegatedOrderService(http_client)
+    service = DelegatedOrderService(http_client, market_fetcher=_legacy_market_fetcher())
 
     monkeypatch.setattr(
         "limitless_sdk.orders.builder.OrderBuilder._generate_salt",
@@ -111,7 +117,7 @@ async def test_create_order_omits_post_only_for_fak(monkeypatch):
     http_client = Mock()
     http_client.require_auth = Mock()
     http_client.post = AsyncMock(return_value=_order_response_payload())
-    service = DelegatedOrderService(http_client)
+    service = DelegatedOrderService(http_client, market_fetcher=_legacy_market_fetcher())
 
     monkeypatch.setattr(
         "limitless_sdk.orders.builder.OrderBuilder._generate_salt",
@@ -139,7 +145,7 @@ async def test_cancel_variants_pass_on_behalf_query_params():
     http_client = Mock()
     http_client.require_auth = Mock()
     http_client.delete = AsyncMock(return_value={"message": "ok"})
-    service = DelegatedOrderService(http_client)
+    service = DelegatedOrderService(http_client, market_fetcher=_legacy_market_fetcher())
 
     message = await service.cancel_on_behalf_of("order-1", 326)
     assert message == "ok"
@@ -161,7 +167,7 @@ async def test_cancel_variants_url_encode_order_id_and_market_slug():
     http_client = Mock()
     http_client.require_auth = Mock()
     http_client.delete = AsyncMock(return_value={"message": "ok"})
-    service = DelegatedOrderService(http_client)
+    service = DelegatedOrderService(http_client, market_fetcher=_legacy_market_fetcher())
 
     message = await service.cancel("order/with space")
     assert message == "ok"
