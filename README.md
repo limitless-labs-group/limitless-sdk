@@ -1056,6 +1056,15 @@ points = positions['accumulativePoints']
 
 ## Changelog
 
+### v1.2.0
+
+- Collateral fee venue support: `Venue.fee_module` / `Venue.fee_module_type`, plus `is_collateral_fee_venue(venue)` and `FEE_MODULE_TYPE_COLLATERAL` exported from `limitless_sdk`.
+- `OrderClient`, `DelegatedOrderService` and the legacy `LimitlessClient` sign `feeRateBps = 0` on collateral fee venues; legacy venues are unchanged.
+- `DelegatedOrderService` accepts a shared `market_fetcher` and resolves the market venue from its cache (fetching once per market on a miss).
+- `examples/00_setup_approvals.py` approves USDC to `venue.feeModule` on collateral fee venues.
+
+See [CHANGELOG.md](CHANGELOG.md#120) for details.
+
 ### v1.1.1
 
 - Restore subscriptions and refresh HMAC authentication on automatic WebSocket reconnects.
