@@ -12,7 +12,7 @@ Example:
     >>> markets = await market_fetcher.get_markets()
 """
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 # API layer - HTTP client and error handling
 from .api import (
@@ -240,7 +240,12 @@ from .exceptions import (
     AuthenticationError as LegacyAuthenticationError,
 )
 
+
+from .packs import PacksService, pack_min_payout, PackErrorDetails, PackErrorKind, classify_pack_error
+from .types.packs import (Pack, PackLeg, PackQuoteParams, PackQuote, PackBuyParams, PackBuyResponse, PackPosition, PackPositions, PackClaimResponse)
+
 __all__ = [
+    "PacksService", "pack_min_payout", "PackErrorDetails", "PackErrorKind", "classify_pack_error", "Pack", "PackLeg", "PackQuoteParams", "PackQuote", "PackBuyParams", "PackBuyResponse", "PackPosition", "PackPositions", "PackClaimResponse",
     # Version
     "__version__",
     # API layer
