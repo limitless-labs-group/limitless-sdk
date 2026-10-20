@@ -1,10 +1,10 @@
 # Limitless Exchange Python SDK
 
-**v1.0.11** | Async | Type-Safe | Partner HMAC Support
+**v1.3.0** | Async | Type-Safe | Partner HMAC Support
 
 A minimalistic, async Python SDK for interacting with the Limitless Exchange API.
 
-> **v1.0.11 Release**: Adds authenticated profile reads via `/profiles/me`, partner sub-account listing/recovery, and WebSocket subscription validation cleanup. See [CHANGELOG.md](./CHANGELOG.md) for release notes.
+> **v1.3.0 Release**: Adds partner curated Packs buy and claim APIs, recovery-aware polling, and typed error guidance. See [CHANGELOG.md](./CHANGELOG.md) for release notes.
 
 ## Features
 
