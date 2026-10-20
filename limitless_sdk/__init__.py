@@ -240,7 +240,12 @@ from .exceptions import (
     AuthenticationError as LegacyAuthenticationError,
 )
 
+
+from .packs import PacksService, pack_min_payout, PackErrorDetails, PackErrorKind, classify_pack_error
+from .types.packs import (Pack, PackLeg, PackQuoteParams, PackQuote, PackBuyParams, PackBuyResponse, PackPosition, PackPositions, PackClaimResponse)
+
 __all__ = [
+    "PacksService", "pack_min_payout", "PackErrorDetails", "PackErrorKind", "classify_pack_error", "Pack", "PackLeg", "PackQuoteParams", "PackQuote", "PackBuyParams", "PackBuyResponse", "PackPosition", "PackPositions", "PackClaimResponse",
     # Version
     "__version__",
     # API layer

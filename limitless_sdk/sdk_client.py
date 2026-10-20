@@ -11,6 +11,7 @@ from .market_pages import MarketPageFetcher
 from .markets import MarketFetcher
 from .orders import OrderClient
 from .partner_accounts import PartnerAccountService
+from .packs import PacksService
 from .partner_amm import PartnerAmmService
 from .portfolio import PortfolioFetcher
 from .server_wallets import ServerWalletService
@@ -51,6 +52,7 @@ class Client:
             self.http, shared_logger, market_fetcher=self.markets
         )
         self.server_wallets = ServerWalletService(self.http, shared_logger)
+        self.packs = PacksService(self.http)
         self.partner_amm = PartnerAmmService(self.http, shared_logger)
 
     async def __aenter__(self):
@@ -77,6 +79,7 @@ class Client:
             http_client, shared_logger, market_fetcher=client.markets
         )
         client.server_wallets = ServerWalletService(http_client, shared_logger)
+        client.packs = PacksService(http_client)
         client.partner_amm = PartnerAmmService(http_client, shared_logger)
         return client
 

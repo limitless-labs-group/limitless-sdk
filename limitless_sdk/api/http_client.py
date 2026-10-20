@@ -242,7 +242,7 @@ class HttpClient:
                 "status": status,
                 "url": url,
                 "method": method,
-                "data": data,
+                "data": "[Pack response omitted]" if url.startswith("/parlay/") else data,
             },
         )
 
@@ -364,6 +364,8 @@ class HttpClient:
         await self._ensure_session()
 
         url, request_path = self._build_url(path)
+        if path.startswith("/parlay/partner/") and any(k.lower() == "x-on-behalf-of" for k in self._additional_headers):
+            raise ValueError("configure on_behalf_of on Packs methods, not global headers")
         body = _serialize_json_body(data)
         request_headers = self._prepare_headers("POST", request_path, body, headers)
         request_headers["Content-Type"] = "application/json"
@@ -405,6 +407,8 @@ class HttpClient:
         await self._ensure_session()
 
         url, request_path = self._build_url(path)
+        if path.startswith("/parlay/partner/") and any(k.lower() == "x-on-behalf-of" for k in self._additional_headers):
+            raise ValueError("configure on_behalf_of on Packs methods, not global headers")
         body = _serialize_json_body(data)
         request_headers = self._prepare_headers("POST", request_path, body, headers)
         request_headers["Content-Type"] = "application/json"
@@ -521,6 +525,8 @@ class HttpClient:
         await self._ensure_session()
 
         url, request_path = self._build_url(path)
+        if path.startswith("/parlay/partner/") and any(k.lower() == "x-on-behalf-of" for k in self._additional_headers):
+            raise ValueError("configure on_behalf_of on Packs methods, not global headers")
         body = _serialize_json_body(data)
         request_headers = self._prepare_headers("POST", request_path, body, headers)
         request_headers["Content-Type"] = "application/json"

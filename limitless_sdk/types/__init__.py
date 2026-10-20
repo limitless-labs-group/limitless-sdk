@@ -272,3 +272,7 @@ __all__ = [
     "HistoryResponse",
     "PortfolioResponse",
 ]
+
+from .packs import (Pack, PackLeg, PackQuoteParams, PackQuote, PackBuyParams, PackBuyResponse, PackPosition, PackPositions, PackClaimResponse)
+
+__all__ += ["Pack", "PackLeg", "PackQuoteParams", "PackQuote", "PackBuyParams", "PackBuyResponse", "PackPosition", "PackPositions", "PackClaimResponse"]
