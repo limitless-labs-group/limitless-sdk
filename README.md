@@ -2,7 +2,7 @@
 
 **v1.3.0** | Async | Type-Safe | Partner HMAC Support
 
-A minimalistic, async Python SDK for interacting with the Limitless Exchange API.
+The official async Python SDK for the [Limitless Exchange](https://limitless.exchange) prediction market API on Base. Build trading bots with market data, order-book (CLOB) trading (GTC, FAK, FOK), portfolio tracking and real-time WebSocket streams. Docs: [docs.limitless.exchange](https://docs.limitless.exchange/developers/sdk/python/getting-started).
 
 > **v1.3.0 Release**: Adds partner curated Packs buy and claim APIs, recovery-aware polling, and typed error guidance. See [CHANGELOG.md](./CHANGELOG.md) for release notes.
 
