@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional, Set, Tuple
 from urllib.parse import urlencode
 
 import aiohttp
+from yarl import URL
 
 from .errors import (
     APIError,
@@ -169,7 +170,8 @@ class HttpClient:
         request_path = path
         if params:
             request_path = f"{path}?{urlencode(params, doseq=True)}"
-        return f"{self.base_url}{request_path}", request_path
+        url = URL(f"{self.base_url}{request_path}")
+        return str(url), url.raw_path_qs
 
     def _prepare_headers(
         self,

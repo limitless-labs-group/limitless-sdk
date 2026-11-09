@@ -173,7 +173,7 @@ async def test_http_client_encodes_special_characters_in_query_params():
     assert method == "GET"
     assert (
         url
-        == "https://api.limitless.exchange/auth/api-tokens?tokenId=token%2Fwith+space&marketSlug=slug%2Fwith+space"
+        == "https://api.limitless.exchange/auth/api-tokens?tokenId=token/with+space&marketSlug=slug/with+space"
     )
 
 
@@ -193,3 +193,66 @@ async def test_http_client_maps_409_to_conflict_error():
 
     assert exc.value.status_code == 409
     assert exc.value.message == "duplicate profile"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", ["get", "get_raw", "post", "post_raw", "delete", "delete_raw"])
+async def test_hmac_matches_request_target_sent_by_transport(method):
+    from aiohttp import web
+
+    received = []
+
+    async def handle(request):
+        body = await request.text()
+        received.append(request.raw_path)
+        expected = _expected_hmac(
+            "c2VjcmV0",
+            request.headers["lmts-timestamp"],
+            request.method,
+            request.raw_path,
+            body,
+        )
+        if request.headers["lmts-signature"] != expected:
+            return web.json_response({"message": "invalid signature"}, status=401)
+        return web.json_response({"ok": True})
+
+    app = web.Application()
+    app.router.add_route("*", "/{tail:.*}", handle)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    try:
+        site = web.TCPSite(runner, "127.0.0.1", 0)
+        await site.start()
+        port = runner.addresses[0][1]
+        async with HttpClient(
+            base_url=f"http://127.0.0.1:{port}",
+            hmac_credentials=HMACCredentials(token_id="test-token", secret="c2VjcmV0"),
+        ) as client:
+            for path, params in [
+                ("/market-pages/by-path?path=%2Fcrypto%2Fbitcoin", None),
+                (
+                    "/market-pages/caf%C3%A9?filter=a%2Bb&filter=space+value&filter=100%25&filter=caf%C3%A9",
+                    None,
+                ),
+                ("/market-pages/by-path", {"path": "/crypto/bitcoin"}),
+            ]:
+                kwargs = {}
+                if params is not None:
+                    if method.startswith("post"):
+                        continue
+                    kwargs["params"] = params
+                if method.startswith("post"):
+                    kwargs["data"] = {"label": "caf\u00e9 + 100%"}
+                response = await getattr(client, method)(path, **kwargs)
+                assert getattr(response, "data", response) == {"ok": True}
+
+    finally:
+        await runner.cleanup()
+
+    expected_paths = [
+        "/market-pages/by-path?path=/crypto/bitcoin",
+        "/market-pages/caf%C3%A9?filter=a%2Bb&filter=space+value&filter=100%25&filter=caf%C3%A9",
+    ]
+    if not method.startswith("post"):
+        expected_paths.append("/market-pages/by-path?path=/crypto/bitcoin")
+    assert received == expected_paths
