@@ -2,7 +2,7 @@
 
 **v1.3.0** | Async | Type-Safe | Partner HMAC Support
 
-A minimalistic, async Python SDK for interacting with the Limitless Exchange API.
+The official async Python SDK for the [Limitless Exchange](https://limitless.exchange) prediction market API on Base. Build trading bots with market data, order-book (CLOB) trading (GTC, FAK, FOK), portfolio tracking and real-time WebSocket streams. Docs: [docs.limitless.exchange](https://docs.limitless.exchange/developers/sdk/python/getting-started).
 
 > **v1.3.0 Release**: Adds partner curated Packs buy and claim APIs, recovery-aware polling, and typed error guidance. See [CHANGELOG.md](./CHANGELOG.md) for release notes.
 
@@ -31,7 +31,7 @@ This SDK is provided "as-is" without any warranties or guarantees. Trading on pr
 - You are responsible for testing the SDK thoroughly before using it in production
 - The SDK authors are not liable for any financial losses or damages
 - You should review and understand the code before executing any trades
-- It is recommended to test all functionality on testnet or with small amounts first
+- There is no testnet or sandbox: test with small live orders (for example the minimum order size) before trading larger amounts
 - The SDK may contain bugs or unexpected behavior despite best efforts
 
 **Feedback Welcome**: We encourage you to report any bugs, suggest improvements, or contribute to the project. Please submit issues or pull requests on our GitHub repository.
@@ -100,10 +100,10 @@ http_client = HttpClient(
     api_key=os.getenv("LIMITLESS_API_KEY")
 )
 
-# Option 3: Custom base URL (for dev/staging)
+# Option 3: Explicit base URL (production is the only environment; there is no staging or testnet)
 http_client = HttpClient(
-    base_url="https://staging.api.limitless.exchange",
-    api_key="sk_test_..."
+    base_url="https://api.limitless.exchange",
+    api_key=os.getenv("LIMITLESS_API_KEY")
 )
 
 # All requests automatically include X-API-Key header
